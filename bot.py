@@ -26,20 +26,44 @@ async def games_menu(ctx):
     embed = discord.Embed(title="Game Commands", color=discord.Color.blue())
     embed.add_field(
         name="🎮 الألعاب الجماعية",
-        value="• مافيا (نظام متكامل بالأدوار والأزرار)\n• روليت\n• عكسي\n• سكات\n• وصل\n• لغم\n• بومب\n• كراسي\n• نرد\n• خمن\n• حجره\n• اكس",
+        value="• مافيا (بنظام الأزرار والأدوار الكاملة)\n• روليت\n• عكسي\n• سكات\n• وصل\n• لغم\n• بومب\n• كراسي\n• نرد\n• خمن\n• حجره\n• اكس",
         inline=False
     )
     await ctx.send(embed=embed)
 
-# ==================== لعبة المافيا التفاعلية الكاملة ====================
+# ==================== نظام أزرار الانضمام والمافيا ====================
 
-class MafiaGame:
-    def __init__(self, ctx):
-        self.ctx = ctx
-        self.players = []
-        self.roles = {}  # {user: role} -> 'mafia', 'doctor', 'citizen'
-        self.mafia_target = None
-        self.doctor_target = None
+class JoinGameView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=45) # مهلة 45 ثانية للتسجيل
+        self.participants = []
+
+    @discord.ui.button(label="انضمام 🎮", style=discord.ButtonStyle.green, custom_id="join_btn")
+    async def join_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user not in self.participants:
+            self.participants.append(interaction.user)
+            await interaction.response.send_message(f"✅ تم انضمامك بنجاح للعبة!", ephemeral=True)
+            await self.update_embed(interaction)
+        else:
+            await interaction.response.send_message(f"⚠️ أنت منضم مسبقاً!", ephemeral=True)
+
+    @discord.ui.button(label="انسحاب ❌", style=discord.ButtonStyle.red, custom_id="leave_btn")
+    async def leave_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user in self.participants:
+            self.participants.remove(interaction.user)
+            await interaction.response.send_message(f"❌ تم انسحابك من اللعبة.", ephemeral=True)
+            await self.update_embed(interaction)
+        else:
+            await interaction.response.send_message(f"⚠️ أنت لست منضماً أصلاً!", ephemeral=True)
+
+    async def update_embed(self, interaction: discord.Interaction):
+        names = "\n".join([f"• {p.display_name}" for p in self.participants]) if self.participants else "لا يوجد لاعبين حتى الآن..."
+        embed = discord.Embed(
+            title="🕵️ لعبة المافيا - تسجيل الدخول",
+            description=f"اضغط على **انضمام** للمشاركة أو **انسحاب** للتراجع.\n\n**المسجلون حالياً ({len(self.participants)}):**\n{names}",
+            color=discord.Color.dark_theme()
+        )
+        await interaction.message.edit(embed=embed, view=self)
 
 class MafiaSelectView(discord.ui.View):
     def __init__(self, players, action_type):
@@ -61,25 +85,29 @@ class MafiaButton(discord.ui.Button):
 
 @bot.command(name='مافيا')
 async def cmd_mafia(ctx):
-    await ctx.send("🕵️ **بدأت لعبة المافيا!** اكتب `انضمام` في الشات خلال 20 ثانية لتشارك معنا.")
+    view = JoinGameView()
+    embed = discord.Embed(
+        title="🕵️ لعبة المافيا - تسجيل الدخول",
+        description="اضغط على زر **انضمام 🎮** أدناه للمشاركة في اللعبة (معاك 45 ثانية):",
+        color=discord.Color.dark_theme()
+    )
+    msg = await ctx.send(embed=embed, view=view)
     
-    participants = []
-    def check(m):
-        return m.channel == ctx.channel and m.content == " انضمام" or m.content == "انضمام" and not m.author.bot
-
-    end_time = asyncio.get_event_loop().time() + 20
-    while asyncio.get_event_loop().time() < end_time:
-        try:
-            res = await bot.wait_for('message', timeout=5.0, check=check)
-            if res.author not in participants:
-                participants.append(res.author)
-                await ctx.send(f"👍 انضم للعبة: {res.author.mention}")
-        except asyncio.TimeoutError:
-            pass
-
+    # الانتظار حتى تنتهي المهلة
+    await view.wait()
+    
+    participants = view.participants
     if len(participants) < 3:
-        await ctx.send("❌ عذراً، يجب أن يكون عدد المشاركين 3 لاعبين على الأقل لبدء لعبة المافيا.")
+        await ctx.send("❌ عذراً، لم يكتمل العدد (الحد الأدنى 3 لاعبين). تم إلغاء اللعبة.")
         return
+
+    # تعطيل الأزرار بعد بدء اللعبة
+    for child in view.children:
+        child.disabled = True
+    try:
+        await msg.edit(view=view)
+    except:
+        pass
 
     # توزيع الأدوار
     random.shuffle(participants)
@@ -89,9 +117,9 @@ async def cmd_mafia(ctx):
     for p in participants[2:]:
         roles[p] = 'citizen'
 
-    await ctx.send(f"🔒 تم توزيع الأدوار سراً في الرسائل الخاصة (DM)! اللاعبون المشاركون: {len(participants)}")
+    await ctx.send(f"🔒 **تم توزيع الأدوار سراً!** عدد اللاعبين المشاركين: {len(participants)}. تفقد رسائلك الخاصة (DM).")
 
-    # إرسال رسائل خاصة للأدوار
+    # إرسال الأدوار بالخاص
     for player, role in roles.items():
         try:
             if role == 'mafia':
@@ -109,21 +137,21 @@ async def cmd_mafia(ctx):
     mafia_player = [p for p, r in roles.items() if r == 'mafia'][0]
     doctor_player = [p for p, r in roles.items() if r == 'doctor'][0]
 
-    # اختيار المافيا للضحية عبر الخاص
+    # اختيار المافيا عبر الخاص
     mafia_target = None
     try:
         view_m = MafiaSelectView(participants, "القتل")
-        m_msg = await mafia_player.send("🔪 **اختر الشخص الذي تريد قتله هذه الليلة:**", view=view_m)
+        await mafia_player.send("🔪 **اختر الشخص الذي تريد قتله هذه الليلة:**", view=view_m)
         await view_m.wait()
         mafia_target = view_m.value
     except:
         pass
 
-    # اختيار الطبيب لمن يحمي عبر الخاص
+    # اختيار الطبيب عبر الخاص
     doctor_target = None
     try:
         view_d = MafiaSelectView(participants, "الحماية")
-        d_msg = await doctor_player.send("💉 **اختر الشخص الذي تريد حمايته هذه الليلة:**", view=view_d)
+        await doctor_player.send("💉 **اختر الشخص الذي تريد حمايته هذه الليلة:**", view=view_d)
         await view_d.wait()
         doctor_target = view_d.value
     except:
@@ -139,10 +167,11 @@ async def cmd_mafia(ctx):
         await ctx.send(f"🛡️ هجمت المافيا على **{mafia_target.display_name}**، لكن الطبيب كان في الأرجح وقام بحمايته! **تمت حماية هذا المواطن من القتل وفشلت عملية القتل بنجاح! 🎉**")
     else:
         await ctx.send(f"💀 للأسف، نجحت المافيا واغتالت اللاعب **{mafia_target.display_name}** بالليل!")
-        participants.remove(mafia_target)
+        if mafia_target in participants:
+            participants.remove(mafia_target)
 
     # مرحلة التصويت الجماعي لطرد المشتبه بهم
-    await ctx.send("🗳️ **بدأت مرحلة التصويت النقاشي!** من تظن أنه المافيا؟ (اكتب اسم اللاعب أو منشنه للتصويت ضده خلال 15 ثانية)")
+    await ctx.send("🗳️ **بدأت مرحلة التصويت النقاشي!** من تظن أنه المافيا؟ (منشن الشخص أو اكتب اسمه في الشات خلال 15 ثانية)")
 
     votes = {}
     def vote_check(m):
@@ -153,7 +182,6 @@ async def cmd_mafia(ctx):
         try:
             v_msg = await bot.wait_for('message', timeout=3.0, check=vote_check)
             voter = v_msg.author
-            # البحث عن الشخص المذكور في الرسالة
             target = v_msg.mentions[0] if v_msg.mentions else None
             if target and target in participants:
                 votes[voter] = target
@@ -161,7 +189,6 @@ async def cmd_mafia(ctx):
             pass
 
     if votes:
-        # حساب أكثر شخص تم التصويت ضده
         from collections import Counter
         tally = Counter(votes.values())
         most_voted, count = tally.most_common(1)[0]
@@ -174,7 +201,7 @@ async def cmd_mafia(ctx):
     else:
         await ctx.send("⏰ انتهى الوقت بدون تصويت حاسم ونجت المافيا!")
 
-# ==================== الألعاب الأخرى السريعة ====================
+# ==================== الألعاب الأخرى ====================
 
 @bot.command(name='روليت')
 async def cmd_roulette(ctx):
@@ -184,10 +211,6 @@ async def cmd_roulette(ctx):
         await ctx.send(f"🔫 {ctx.author.mention} سحب الزناد... نجا ولله الحمد! (+15 نقطة).")
     else:
         await ctx.send(f"💥 بـووووم! {ctx.author.mention} طاحت عليه الرصاصة! 💀")
-
-@bot.command(name='عكسي')
-async def cmd_aksi(ctx):
-    await ctx.send(f"🔄 **لعبة عكسي:** أسرع واحد يعكس الكلمة التالية (مدرسة) يكتبها بالشات!")
 
 @bot.command(name='توب')
 async def cmd_top(ctx):
