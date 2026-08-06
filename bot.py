@@ -41,7 +41,7 @@ async def games_menu(ctx):
     )
     await ctx.send(embed=embed)
 
-# ==================== نظام أزرار ولعبة المافيا المطابقة للصورة ====================
+# ==================== نظام أزرار ولعبة المافيا بالشكل المطلوب تماماً ====================
 
 class JoinGameView(discord.ui.View):
     def __init__(self):
@@ -71,11 +71,10 @@ class JoinGameView(discord.ui.View):
 
     async def update_embed(self, interaction: discord.Interaction, remaining_time):
         count = len(self.participants)
-        names = "\n".join([f"• {p.display_name}" for p in self.participants]) if self.participants else "لا يوجد لاعبين حتى الآن..."
         
         embed = discord.Embed(
             title=f"اللاعبين: {count}/24",
-            description=f"in {remaining_time} seconds\n\n🎩\n### مافيا\nأضغط على زر دخول للإنضمام إلى اللعبة\n\n**المسجلون حالياً:**\n" + names,
+            description=f"in {remaining_time} seconds",
             color=discord.Color.dark_theme()
         )
         embed.set_image(url="https://cdn.discordapp.com/attachments/1534223835031801956/1534961993503604736/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a760841&is=6a74b6c1&hm=6fa313de223f874fe63edadc5c7855934bf9da5f32a08fd02baba9ec35a6fcf2&")
@@ -107,7 +106,7 @@ async def cmd_mafia(ctx):
     view = JoinGameView()
     embed = discord.Embed(
         title="اللاعبين: 0/24",
-        description="in 30 seconds\n\n🎩\n### مافيا\nأضغط على زر دخول للإنضمام إلى اللعبة",
+        description="in 30 seconds",
         color=discord.Color.dark_theme()
     )
     embed.set_image(url="https://cdn.discordapp.com/attachments/1534223835031801956/1534961993503604736/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a760841&is=6a74b6c1&hm=6fa313de223f874fe63edadc5c7855934bf9da5f32a08fd02baba9ec35a6fcf2&")
@@ -118,10 +117,9 @@ async def cmd_mafia(ctx):
     for remaining in range(29, -1, -1):
         await asyncio.sleep(1)
         count = len(view.participants)
-        names = "\n".join([f"• {p.display_name}" for p in view.participants]) if view.participants else "لا يوجد لاعبين حتى الآن..."
         
         embed.title = f"اللاعبين: {count}/24"
-        embed.description = f"in {remaining} seconds\n\n🎩\n### مافيا\nأضغط على زر دخول للإنضمام إلى اللعبة\n\n**المسجلون حالياً:**\n" + names
+        embed.description = f"in {remaining} seconds"
         try:
             await msg.edit(embed=embed, view=view)
         except:
