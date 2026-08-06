@@ -44,109 +44,107 @@ async def games_menu(ctx):
 # ==================== الألعاب الجماعية ====================
 
 @bot.command(name='روليت')
-async def game_roulette(ctx):
-    survived = random.choice([True, True, True, False]) # نسبة الخسارة 25%
+async def cmd_roulette(ctx):
+    survived = random.choice([True, True, True, False])
     if survived:
         add_points(ctx.author.id, 15)
-        await ctx.send(f"🔫 {ctx.author.mention} سحب الزناد... نجا ولله الحمد! (خذ 15 نقطة سرفايفل).")
+        await ctx.send(f"🔫 {ctx.author.mention} سحب الزناد... نجا ولله الحمد! (+15 نقطة).")
     else:
-        await ctx.send(f"💥 بـووووم! {ctx.author.mention} طاحت عليه الرصاصة وطلع برأس منفوخ! 💀")
+        await ctx.send(f"💥 بـووووم! {ctx.author.mention} طاحت عليه الرصاصة! 💀")
 
 @bot.command(name='روليتز')
-async def game_rouletz(ctx):
-    await ctx.send(f"🎡 {ctx.author.mention} شغل روليت الحظ السريع! تدور العجلة... وربح **20 نقطة** عشوائية!")
+async def cmd_rouletz(ctx):
     add_points(ctx.author.id, 20)
+    await ctx.send(f"🎡 {ctx.author.mention} شغل روليت الحظ وربح **20 نقطة**!")
 
 @bot.command(name='عكسي')
-async def game_aksi(ctx):
-    words = {"مرحبا": "احبرم", "توت": "توت", "جميل": "ليمج"}
-    await ctx.send(f"🔄 **لعبة عكسي الجماعية:** أسرع واحد يكتب كلمة `العكس` معكوسة يربح!")
+async def cmd_aksi(ctx):
+    await ctx.send(f"🔄 **لعبة عكسي:** أسرع واحد يعكس الكلمة التالية (مدرسة) يكتبها بالشات!")
 
 @bot.command(name='سكات')
-async def game_skat(ctx):
-    await ctx.send(f"🤫 **لعبة سكات!** أطول واحد يلتزم الصمت ولا يكتب شي لمدة 15 ثانية يفوز بالنقاط! ابدأوا الصمت... 🤐")
-    await asyncio.sleep(15)
-    await ctx.send(f"⏱️ انتهى وقت الصمت! الفائزون هم من التزموا الهدوء.")
+async def cmd_skat(ctx):
+    await ctx.send(f"🤫 **لعبة سكات!** أطول شخص يلتزم الصمت لمدة 10 ثواني يفوز! 🤐")
+    await asyncio.sleep(10)
+    await ctx.send(f"⏱️ انتهى وقت السكات!")
 
 @bot.command(name='وصل')
-async def game_wasal(ctx):
-    await ctx.send(f"🔗 **لعبة وصل:** اربط الكلمة التالية بكلمة مناسبة: **(بحر)** - معاك 10 ثواني لأول إجابة!")
+async def cmd_wasal(ctx):
+    await ctx.send(f"🔗 **لعبة وصل:** اربط الكلمة التالية (سماء) بكلمة مناسبة!")
 
 @bot.command(name='لغم')
-async def game_mine(ctx):
-    safe_box = random.randint(1, 3)
-    await ctx.send(f"💣 زرعنا لغم في أحد الأبواب (1 أو 2 أو 3). اختر رقماً لا يكون فيه اللغم! (اكتب الرقم)")
+async def cmd_mine(ctx):
+    safe = random.randint(1, 3)
+    await ctx.send(f"💣 زرعنا لغم في أحد الأبواب (1 أو 2 أو 3). اختر رقماً لا يكون فيه اللغم!")
     def check(m):
         return m.channel == ctx.channel and m.content.isdigit() and not m.author.bot
     try:
         msg = await bot.wait_for('message', timeout=10.0, check=check)
-        choice = int(msg.content)
-        if choice == safe_box:
+        if int(msg.content) == safe:
             add_points(msg.author.id, 25)
-            await ctx.send(f"🎉 كفو {msg.author.mention} اخترت الباب السليم وتجنبت اللغم! (+25 نقطة)")
+            await ctx.send(f"🎉 كفو {msg.author.mention} تجنبت اللغم وفزت بـ 25 نقطة!")
         else:
-            await ctx.send(f"💥 بووووم! دست على اللغم يا {msg.author.mention}! اللغم كان في باب رقم {safe_box}.")
+            await ctx.send(f"💥 بووووم! دست على اللغم يا {msg.author.mention}.")
     except asyncio.TimeoutError:
-        await ctx.send("⏰ انتهى الوقت ولم تختار أي باب!")
+        await ctx.send("⏰ انتهى الوقت!")
 
 @bot.command(name='بومب')
-async def game_bomb(ctx):
-    await ctx.send(f"💣 تم زرع القنبلة بواسطة {ctx.author.mention}! اكتب `قطع` بسرعة خلال 8 ثوانٍ!")
+async def cmd_bomb(ctx):
+    await ctx.send(f"💣 تم زرع القنبلة بواسطة {ctx.author.mention}! اكتب `قطع` بسرعة خلال 8 ثواني!")
     def check(m):
         return m.content == "قطع" and not m.author.bot
     try:
         msg = await bot.wait_for('message', timeout=8.0, check=check)
         add_points(msg.author.id, 20)
-        await ctx.send(f"💥 كفو {msg.author.mention} قطعت السلك الصح وفككت القنبلة! (+20 نقطة)")
+        await ctx.send(f"💥 كفو {msg.author.mention} فككت القنبلة بسلام! (+20 نقطة)")
     except asyncio.TimeoutError:
-        await ctx.send("💥 انقضى الوقت وانفجرت القنبلة بالجميع! 💀")
+        await ctx.send("💥 بوووم! انفجرت القنبلة بالجميع! 💀")
 
 @bot.command(name='كراسي')
-async def game_chairs(ctx):
-    await ctx.send(f"🪑 أضيئت الكراسي الموسيقية! أسرع شخص يكتب كلمة `جلس` يربح الكرسي! (معاك 5 ثواني)")
+async def cmd_chairs(ctx):
+    await ctx.send(f"🪑 أسرع شخص يكتب كلمة `جلس` يربح الكرسي! (معاك 5 ثواني)")
     def check(m):
         return m.content == "جلس" and not m.author.bot
     try:
         msg = await bot.wait_for('message', timeout=5.0, check=check)
         add_points(msg.author.id, 15)
-        await ctx.send(f"🏆 الف مبروك يا {msg.author.mention} لحقت على الكرسي وفزت بـ 15 نقطة!")
+        await ctx.send(f"🏆 الف مبروك يا {msg.author.mention} لحقت على الكرسي!")
     except asyncio.TimeoutError:
-        , await ctx.send("⏰ انتهى الوقت، ما لحقوا على الكراسي!")
+        await ctx.send("⏰ انتهى الوقت!")
 
 @bot.command(name='نرد')
-async def game_dice(ctx):
+async def cmd_dice(ctx):
     r1, r2 = random.randint(1, 6), random.randint(1, 6)
     await ctx.send(f"🎲 رمي النرد لـ {ctx.author.mention}: **{r1}** و **{r2}** (المجموع: {r1+r2})")
 
 @bot.command(name='هايد')
-async def game_hide(ctx):
-    await ctx.send(f"👤 بدأ التخفي (هايد)! البوت يتخفي في مكان ما، ابحث عنه أو خمن المكان.")
+async def cmd_hide(ctx):
+    await ctx.send(f"👤 بدأ التخفي (هايد)! ابحث عن المكان السري.")
 
 @bot.command(name='خمن')
-async def game_guess(ctx):
+async def cmd_guess(ctx):
     target = random.randint(1, 10)
-    await ctx.send(f"🔮 خمن الرقم السرّي من 1 إلى 10! معك 15 ثانية واكتب الرقم بالشات.")
+    await ctx.send(f"🔮 خمن الرقم السري من 1 إلى 10! (معاك 15 ثانية)")
     def check(m):
         return m.channel == ctx.channel and m.content.isdigit() and not m.author.bot
     try:
         msg = await bot.wait_for('message', timeout=15.0, check=check)
         if int(msg.content) == target:
             add_points(msg.author.id, 20)
-            await ctx.send(f"🎯 الله عليك يا {msg.author.mention} خمنت الرقم الصحيح ({target})! (+20 نقطة)")
+            await ctx.send(f"🎯 كفو {msg.author.mention} خمنت الرقم الصحيح ({target})!")
         else:
-            await ctx.send(f"❌ خطأ! الرقم الصحيح كان: {target}")
+            await ctx.send(f"❌ خطأ! الرقم كان: {target}")
     except asyncio.TimeoutError:
-        await ctx.send(f"⏰ خلص الوقت! الرقم كان: {target}")
+        await ctx.send(f"⏰ انتهى الوقت! الرقم كان: {target}")
 
 @bot.command(name='مافيا')
-async def game_mafia(ctx):
-    await ctx.send(f"🕵️ لعبة مافيا بدأت! من هو المافيا الخفي بينكم؟ (لعبة جماعية تفاعلية)")
+async def cmd_mafia(ctx):
+    await ctx.send(f"🕵️ لعبة مافيا بدأت! من هو المافيا الخفي؟")
 
 @bot.command(name='حجره')
-async def game_rps(ctx, choice: str = None):
+async def cmd_rps(ctx, choice: str = None):
     choices = ["حجر", "ورقة", "مقص"]
     if choice not in choices:
-        await ctx.send("⚠️ استخدم الطريقة: `-حجره حجر` أو `-حجره ورقة` أو `-حجره مقص`")
+        await ctx.send("⚠️ اكتب هكذا: `-حجره حجر` أو `-حجره ورقة` أو `-حجره مقص`")
         return
     bot_choice = random.choice(choices)
     if choice == bot_choice:
@@ -159,18 +157,18 @@ async def game_rps(ctx, choice: str = None):
     await ctx.send(f"اختيارك: {choice} | اختياري: {bot_choice}\nالنتيجة: **{res}**")
 
 @bot.command(name='اكس')
-async def game_xo(ctx):
-    await ctx.send(f"❌⭕ لعبة اكس أو (Tic Tac Toe) جاهزة للبدء بين لاعبين!")
+async def cmd_xo(ctx):
+    await ctx.send(f"❌⭕ لعبة اكس أو جاهزة للبدء!")
 
 @bot.command(name='ازار')
-async def game_azar(ctx):
-    await ctx.send(f"⚡ بدأت لعبة أزار السريعة والتحديات الفورية!")
+async def cmd_azar(ctx):
+    await ctx.send(f"⚡ بدأت لعبة أزار والتحديات السريعة!")
 
 
 # ==================== الألعاب الفردية ====================
 
 @bot.command(name='حساب')
-async def game_math(ctx):
+async def cmd_math(ctx):
     n1, n2 = random.randint(1, 50), random.randint(1, 50)
     op = random.choice(['+', '-', '*'])
     ans = eval(f"{n1} {op} {n2}")
@@ -181,14 +179,14 @@ async def game_math(ctx):
         msg = await bot.wait_for('message', timeout=15.0, check=check)
         if int(msg.content) == ans:
             add_points(msg.author.id, 10)
-            await ctx.send(f"🎉 كفو {msg.author.mention}! صح (+10 نقاط)")
+            await ctx.send(f"🎉 كفو {msg.author.mention}! إجابة صحيحة (+10 نقاط)")
         else:
             await ctx.send(f"❌ خطأ! الناتج كان: {ans}")
     except asyncio.TimeoutError:
         await ctx.send(f"⏰ انتهى الوقت! الناتج كان: {ans}")
 
 @bot.command(name='عواصم')
-async def game_capitals(ctx):
+async def cmd_capitals(ctx):
     caps = {"السعودية": "الرياض", "مصر": "القاهرة", "الكويت": "الكويت", "الإمارات": "أبوظبي"}
     country, capital = random.choice(list(caps.items()))
     await ctx.send(f"🌍 ما هي عاصمة **{country}**؟")
@@ -198,24 +196,24 @@ async def game_capitals(ctx):
         msg = await bot.wait_for('message', timeout=15.0, check=check)
         if msg.content.strip() == capital:
             add_points(msg.author.id, 10)
-            await ctx.send(f"🎉 صح يا {msg.author.mention}! العاصمة **{capital}**")
+            await ctx.send(f"🎉 صح يا {msg.author.mention}! العاصمة هي **{capital}**")
         else:
-            await ctx.send(f"❌ خطأ العاصمة: {capital}")
+            await ctx.send(f"❌ خطأ! العاصمة الصحيحة: {capital}")
     except asyncio.TimeoutError:
         await ctx.send(f"⏰ انتهى الوقت! العاصمة: {capital}")
 
 @bot.command(name='اشبك')
-async def game_ashbak(ctx):
-    await ctx.send(f"🔗 اشبك الحروف أو الكلمات لتكوين جملة مفيدة صحيحة!")
+async def cmd_ashbak(ctx):
+    await ctx.send(f"🔗 اشبك الحروف التالية لتكوين كلمة مفيدة!")
 
 @bot.command(name='كت')
-async def game_cut(ctx):
-    qs = ["لو خيروك: بدون إنترنت أو بدون أصدقاء؟", "لو خيروك: تسافر للماضي أو للمستقبل؟"]
+async def cmd_cut(ctx):
+    qs = ["لو خيروك بين: بدون إنترنت أو بدون أصدقاء؟", "لو خيروك بين: السفر للماضي أو للمستقبل؟"]
     embed = discord.Embed(title="❓ سؤال كت", description=random.choice(qs), color=discord.Color.purple())
     await ctx.send(embed=embed)
 
 @bot.command(name='اسرع')
-async def game_asra3(ctx):
+async def cmd_asra3(ctx):
     word = random.choice(["تفاحة", "سرعة", "صاروخ", "برمجة"])
     await ctx.send(f"⚡ أسرع واحد يكتب هذه الكلمة: **{word}**")
     def check(m):
@@ -225,14 +223,14 @@ async def game_asra3(ctx):
         add_points(msg.author.id, 15)
         await ctx.send(f"🏆 كفو {msg.author.mention} أسرع واحد! (+15 نقطة)")
     except asyncio.TimeoutError:
-        await ctx.send(f"⏰ خلص الوقت! محد كتب الكلمة بسرعة.")
+        await ctx.send(f"⏰ خلص الوقت!")
 
 @bot.command(name='كمل')
-async def game_kamel(ctx):
-    await ctx.send(f"📝 كمل المثل أو الآية أو الأغنية التالية: (من طلب العلا ...)")
+async def cmd_kamel(ctx):
+    await ctx.send(f"📝 كمل المثل التالي: (من طلب العلا ...)")
 
 @bot.command(name='فكك')
-async def game_unpack(ctx):
+async def cmd_unpack(ctx):
     words = {"برمجة": "ب ر م ج ة", "حاسوب": "ح ا س و ب"}
     word, unpacked = random.choice(list(words.items()))
     await ctx.send(f"✂️ فكك الكلمة: **{word}**")
@@ -249,19 +247,19 @@ async def game_unpack(ctx):
         await ctx.send(f"⏰ انتهى الوقت!")
 
 @bot.command(name='اعلام')
-async def game_flags(ctx):
-    await ctx.send(f"🚩 ما هو علم الدولة التالية؟ 🇸🇦 (أو اكتب اسم الدولة)")
+async def cmd_flags(ctx):
+    await ctx.send(f"🚩 ما هو اسم الدولة صاحبة هذا العلم؟ 🇸🇦")
 
 @bot.command(name='التالي')
-async def game_next(ctx):
+async def cmd_next(ctx):
     await ctx.send(f"⏭️ تم تخطي السؤال والانتقال للسؤال التالي بنجاح!")
 
 @bot.command(name='جمع')
-async def game_gam3(ctx):
-    await ctx.send(f"➕ ا جمع الحروف التالية لتكون كلمة: (ك ت ا ب)")
+async def cmd_gam3(ctx):
+    await ctx.send(f"➕ ا جمع الحروف التالية لتكون كلمة: (ك - ت - ا - ب)")
 
 @bot.command(name='عكس')
-async def game_reverse_word(ctx):
+async def cmd_reverse(ctx):
     normal_words = ["تفاحة", "قلم", "كمبيوتر"]
     w = random.choice(normal_words)
     rev = w[::-1]
@@ -279,21 +277,21 @@ async def game_reverse_word(ctx):
         await ctx.send(f"⏰ انتهى الوقت!")
 
 @bot.command(name='مفرد')
-async def game_mufrad(ctx):
+async def cmd_mufrad(ctx):
     await ctx.send(f"👤 أوجد مفرد الكلمة التالية: (أقلام)")
 
 
 # ==================== الأوامر العامة والأخرى ====================
 
 @bot.command(name='تصويت')
-async def game_vote(ctx, *, topic: str = "تصويت جديد"):
+async def cmd_vote(ctx, *, topic: str = "تصويت جديد"):
     embed = discord.Embed(title="📊 صندوق التصويت", description=topic, color=discord.Color.green())
     msg = await ctx.send(embed=embed)
     await msg.add_reaction("👍")
     await msg.add_reaction("👎")
 
 @bot.command(name='توب')
-async def top_board(ctx, game_name: str = None):
+async def cmd_top(ctx, game_name: str = None):
     if not user_points:
         await ctx.send("🏆 مافي نقاط مسجلة لحد الآن!")
         return
@@ -309,12 +307,12 @@ async def top_board(ctx, game_name: str = None):
     await ctx.send(embed=embed)
 
 @bot.command(name='نقاطي')
-async def my_points(ctx):
+async def cmd_my_points(ctx):
     pts = user_points.get(ctx.author.id, 0)
     await ctx.send(f"📊 {ctx.author.mention}, رصيدك: **{pts}** نقطة.")
 
 @bot.command(name='تحويل')
-async def transfer_points(ctx, member: discord.Member, amount: int):
+async def cmd_transfer(ctx, member: discord.Member, amount: int):
     sender_pts = user_points.get(ctx.author.id, 0)
     if amount <= 0 or sender_pts < amount:
         await ctx.send("❌ عذراً، لا توجد نقاط كافية أو القيمة غير صالحة.")
@@ -324,7 +322,7 @@ async def transfer_points(ctx, member: discord.Member, amount: int):
     await ctx.send(f"✅ تم تحويل **{amount}** نقطة إلى {member.mention}!")
 
 @bot.command(name='ايقاف')
-async def stop_bot_game(ctx):
+async def cmd_stop(ctx):
     await ctx.send(f"🛑 تم إيقاف الألعاب بواسطة {ctx.author.mention}.")
 
 # تشغيل البوت
