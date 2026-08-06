@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import os
+import asyncio
 from keep_alive import keep_alive
 
 intents = discord.Intents.default()
@@ -12,6 +13,22 @@ bot = commands.Bot(command_prefix='-', intents=intents)
 @bot.event
 async def on_ready():
     print(f'البوت شغال وجاهز باسم: {bot.user}')
+
+# ==================== قائمة الأوامر (Help) ====================
+@bot.command(name="اوامر")
+async def help_menu(ctx):
+    embed = discord.Embed(title="📜 قائمة أوامر البوت", description="إليك كافة الأوامر المتاحة وطريقة استخدامها:", color=discord.Color.blue())
+    
+    embed.add_field(name="🏓 -ping", value="يقيس سرعة استجابة البوت ويرد بـ Pong مع السرعة بالمللي ثانية.", inline=False)
+    embed.add_field(name="🧹 -clear [العدد]", value="يحذف عدداً محدداً من الرسائل دفعة واحدة (يتطلب صلاحية إدارة الرسائل).", inline=False)
+    embed.add_field(name="📊 -server", value="يعرض بطاقة معلومات السيرفر (اسم السيرفر، المالك، عدد الأعضاء، وتاريخ الإنشاء).", inline=False)
+    embed.add_field(name="🖼️ -avatar [@user]", value="يعرض صورة البروفايل (الأفاتار) الخاصة بك أو لعضو آخر تختاره.", inline=False)
+    embed.add_field(name="📜 -rules", value="ينشر رسالة إمبيد رسمية تحتوي على قوانين السيرفر (يتطلب صلاحية المسؤول).", inline=False)
+    embed.add_field(name="💡 -suggest [الاقتراح]", value="يرسل اقتراحك بشكل مرتب في الشات مع تفاعل الأزرار 👍 و 👎 لتصويت الأعضاء.", inline=False)
+    embed.add_field(name="📢 -announce [العنوان] [النص]", value="يرسل إمبيد إعلاني رسمي ومرتب في الشات مع اسم الإداري الذي أرسله (يتطلب صلاحية المسؤول).", inline=False)
+    embed.add_field(name="👋 الترحيب التلقائي", value="وظيفة تلقائية تعمل وحدها فور دخول أي عضو جديد للسيرفر وترسل ترحيباً في روم الترحيب.", inline=False)
+    
+    await ctx.send(embed=embed)
 
 # ==================== 1. بوت بينج (Ping) ====================
 @bot.command(name="ping")
