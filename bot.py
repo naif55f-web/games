@@ -41,7 +41,7 @@ async def games_menu(ctx):
     )
     await ctx.send(embed=embed)
 
-# ==================== نظام أزرار ولعبة المافيا بالشكل المطلوب تماماً ====================
+# ==================== نظام أزرار ولعبة المافيا بدون خلفية رمادية ====================
 
 class JoinGameView(discord.ui.View):
     def __init__(self):
@@ -72,12 +72,13 @@ class JoinGameView(discord.ui.View):
     async def update_embed(self, interaction: discord.Interaction, remaining_time):
         count = len(self.participants)
         
+        # استخدام لون ديسكورد الداكن المدمج لتقليل ظهور المربعات الرمادية
         embed = discord.Embed(
             title=f"اللاعبين: {count}/24",
             description=f"in {remaining_time} seconds",
-            color=discord.Color.dark_theme()
+            color=0x2b2d31  # لون خلفية ديسكورد الداكن لدمج الصورة بسلاسة
         )
-        embed.set_image(url="https://cdn.discordapp.com/attachments/1534223835031801956/1534961993503604736/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a760841&is=6a74b6c1&hm=6fa313de223f874fe63edadc5c7855934bf9da5f32a08fd02baba9ec35a6fcf2&")
+        embed.set_image(url="https://cdn.discordapp.com/attachments/1534223835031801956/1534963863999483954/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a7609ff&is=6a74b87f&hm=d41721366c2cdb2f11ac853cb27d9134ee2b59ce2280eae5ad2355ad904e4435&")
         
         try:
             await interaction.message.edit(embed=embed, view=self)
@@ -107,9 +108,9 @@ async def cmd_mafia(ctx):
     embed = discord.Embed(
         title="اللاعبين: 0/24",
         description="in 30 seconds",
-        color=discord.Color.dark_theme()
+        color=0x2b2d31  # لون ديسكورد الداكن المطابق لخلفية الشات
     )
-    embed.set_image(url="https://cdn.discordapp.com/attachments/1534223835031801956/1534961993503604736/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a760841&is=6a74b6c1&hm=6fa313de223f874fe63edadc5c7855934bf9da5f32a08fd02baba9ec35a6fcf2&")
+    embed.set_image(url="https://cdn.discordapp.com/attachments/1534223835031801956/1534963863999483954/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a7609ff&is=6a74b87f&hm=d41721366c2cdb2f11ac853cb27d9134ee2b59ce2280eae5ad2355ad904e4435&")
     
     msg = await ctx.send(embed=embed, view=view)
     
@@ -135,12 +136,12 @@ async def cmd_mafia(ctx):
     except:
         pass
 
-    # التحقق من أن العدد 5 لاعبين على الأقل
+    # التحقق من أن العدد 5 لاعبين على الأقل (بالنص الذي طلبته تماماً)
     if len(participants) < 5:
         await ctx.send("**تم إيقاف اللعبة لعدم وجود `5` لاعبين على الأقل - ⛔.**")
         return
 
-    # توزيع الأدوار
+    # توزيع الأدوار وبقية اللعبة
     random.shuffle(participants)
     mafia_player = participants[0]
     doctor_player = participants[1]
@@ -152,7 +153,6 @@ async def cmd_mafia(ctx):
 
     await ctx.send(f"🔒 **تم توزيع الأدوار سراً بالخاص!** عدد اللاعبين المشاركين: {len(participants)}.")
 
-    # إرسال الأدوار بالخاص
     try:
         await mafia_player.send("🔪 **أنت القاتل (المافيا)!** اختبئ جيداً واقضِ على الجميع.")
         await doctor_player.send("💉 **أنت الطبيب!** مهمتك حماية شخص كل ليلة من القتل.")
@@ -161,9 +161,8 @@ async def cmd_mafia(ctx):
     except:
         pass
 
-    # 1. بداية الليل ودور الطبيب أولاً
     await ctx.send("🌙 **حل الليل... تنام المدينة.**")
-    await ctx.send("💉 **دور الطبيب الآن!** (تصل رسالة خاصة للطبيب لاختيار من يحميه...)")
+    await ctx.send("💉 **دور الطبيب الآن!**")
 
     doctor_target = None
     try:
@@ -174,8 +173,7 @@ async def cmd_mafia(ctx):
     except:
         pass
 
-    # 2. دور المافيا ثانياً
-    await ctx.send("🔪 **دور المافيا الآن!** (تصل رسالة خاصة للمافيا لاختيار الضحية...)")
+    await ctx.send("🔪 **دور المافيا الآن!**")
 
     mafia_target = None
     try:
@@ -189,7 +187,6 @@ async def cmd_mafia(ctx):
     await asyncio.sleep(2)
     await ctx.send("☀️ **أشرقت شمس اليوم الجديد!** حان وقت الكشف عن الأحداث...")
 
-    # 3. النتيجة بحسب شروطك الدقيقة
     if mafia_target and mafia_target == doctor_target:
         await ctx.send(f"🛡️ **تمت حماية {mafia_target.display_name} من قبل الطبيب من القاتل!** ولم يمت أحد هذه الليلة. 🎉")
     elif mafia_target:
@@ -199,7 +196,6 @@ async def cmd_mafia(ctx):
     else:
         await ctx.send("🌅 لم تحدث أي حالة قتل هذه الليلة!")
 
-    # 4. مرحلة التصويت الجماعي
     await ctx.send("🗳️ **بدأ التصويت!** من تعتقدون أنه المافيا؟ (اكتب اسم الشخص أو سوِّ له منشن خلال 15 ثانية)")
 
     votes = {}
