@@ -41,12 +41,13 @@ async def games_menu(ctx):
     )
     await ctx.send(embed=embed)
 
-# ==================== نظام أزرار ولعبة المافيا بدون خلفية رمادية ====================
+# ==================== لعبة المافيا (بدون إطار رمادي وبشكل شفاف) ====================
 
 class JoinGameView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, message_to_edit):
         super().__init__(timeout=30)
         self.participants = []
+        self.msg_to_edit = message_to_edit
 
     @discord.ui.button(label="دخول 👤+", style=discord.ButtonStyle.secondary, custom_id="join_btn")
     async def join_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -56,7 +57,7 @@ class JoinGameView(discord.ui.View):
                 return
             self.participants.append(interaction.user)
             await interaction.response.send_message("✅ تم انضمامك بنجاح للعبة المافيا!", ephemeral=True)
-            await self.update_embed(interaction, 30)
+            await self.update_content(interaction, 30)
         else:
             await interaction.response.send_message("⚠️ أنت منضم مسبقاً!", ephemeral=True)
 
@@ -65,23 +66,16 @@ class JoinGameView(discord.ui.View):
         if interaction.user in self.participants:
             self.participants.remove(interaction.user)
             await interaction.response.send_message("❌ تم انسحابك من اللعبة.", ephemeral=True)
-            await self.update_embed(interaction, 30)
+            await self.update_content(interaction, 30)
         else:
             await interaction.response.send_message("⚠️ أنت لست منضماً أصلاً!", ephemeral=True)
 
-    async def update_embed(self, interaction: discord.Interaction, remaining_time):
+    async def update_content(self, interaction: discord.Interaction, remaining_time):
         count = len(self.participants)
-        
-        # استخدام لون ديسكورد الداكن المدمج لتقليل ظهور المربعات الرمادية
-        embed = discord.Embed(
-            title=f"اللاعبين: {count}/24",
-            description=f"in {remaining_time} seconds",
-            color=0x2b2d31  # لون خلفية ديسكورد الداكن لدمج الصورة بسلاسة
-        )
-        embed.set_image(url="https://cdn.discordapp.com/attachments/1534223835031801956/1534963863999483954/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a7609ff&is=6a74b87f&hm=d41721366c2cdb2f11ac853cb27d9134ee2b59ce2280eae5ad2355ad904e4435&")
-        
+        image_url = "https://cdn.discordapp.com/attachments/1534223835031801956/1534963863999483954/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a7609ff&is=6a74b87f&hm=d41721366c2cdb2f11ac853cb27d9134ee2b59ce2280eae5ad2355ad904e4435&"
+        content = f"**اللاعبين:** {count}/24\nin {remaining_time} seconds\n{image_url}"
         try:
-            await interaction.message.edit(embed=embed, view=self)
+            await interaction.message.edit(content=content, view=self)
         except:
             pass
 
@@ -104,31 +98,25 @@ class TargetButton(discord.ui.Button):
 
 @bot.command(name='مافيا')
 async def cmd_mafia(ctx):
-    view = JoinGameView()
-    embed = discord.Embed(
-        title="اللاعبين: 0/24",
-        description="in 30 seconds",
-        color=0x2b2d31  # لون ديسكورد الداكن المطابق لخلفية الشات
-    )
-    embed.set_image(url="https://cdn.discordapp.com/attachments/1534223835031801956/1534963863999483954/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a7609ff&is=6a74b87f&hm=d41721366c2cdb2f11ac853cb27d9134ee2b59ce2280eae5ad2355ad904e4435&")
+    image_url = "https://cdn.discordapp.com/attachments/1534223835031801956/1534963863999483954/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a7609ff&is=6a74b87f&hm=d41721366c2cdb2f11ac853cb27d9134ee2b59ce2280eae5ad2355ad904e4435&"
+    initial_text = "**اللاعبين:** 0/24\nin 30 seconds\n" + image_url
     
-    msg = await ctx.send(embed=embed, view=view)
-    
-    # عد تنازلي لمدة 30 ثانية وتحديث الوقت في الرسالة كل ثانية
+    view = JoinGameView(None)
+    msg = await ctx.send(content=initial_text, view=view)
+    view.msg_to_edit = msg
+
+    # عد تنازلي لمدة 30 ثانية
     for remaining in range(29, -1, -1):
         await asyncio.sleep(1)
         count = len(view.participants)
-        
-        embed.title = f"اللاعبين: {count}/24"
-        embed.description = f"in {remaining} seconds"
+        updated_text = f"**اللاعبين:** {count}/24\nin {remaining} seconds\n" + image_url
         try:
-            await msg.edit(embed=embed, view=view)
+            await msg.edit(content=updated_text, view=view)
         except:
             break
 
     participants = view.participants
 
-    # تعطيل الأزرار بعد انتهاء الوقت
     for child in view.children:
         child.disabled = True
     try:
@@ -136,12 +124,10 @@ async def cmd_mafia(ctx):
     except:
         pass
 
-    # التحقق من أن العدد 5 لاعبين على الأقل (بالنص الذي طلبته تماماً)
     if len(participants) < 5:
         await ctx.send("**تم إيقاف اللعبة لعدم وجود `5` لاعبين على الأقل - ⛔.**")
         return
 
-    # توزيع الأدوار وبقية اللعبة
     random.shuffle(participants)
     mafia_player = participants[0]
     doctor_player = participants[1]
@@ -332,7 +318,7 @@ async def cmd_rps(ctx, choice: str = None):
         res = "تعادل 🤝"
     elif (choice == "حجر" and bot_choice == "مقص") or (choice == "ورقة" and bot_choice == "حجر") or (choice == "مقص" and bot_choice == "ورقة"):
         res = "فزت علي! 🎉 (+10 نقاط)"
-        add_points(ctx.author.id, 10)
+        add_points(msg.author.id, 10)
     else:
         res = "أنا فزت عليك! 🤖"
     await ctx.send(f"اختيارك: {choice} | اختياري: {bot_choice}\nالنتيجة: **{res}**")
