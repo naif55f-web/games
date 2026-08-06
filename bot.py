@@ -26,31 +26,36 @@ async def help_menu(ctx):
     embed.add_field(name="📜 -rules", value="ينشر رسالة إمبيد رسمية تحتوي على قوانين السيرفر (يتطلب صلاحية المسؤول).", inline=False)
     embed.add_field(name="💡 -suggest [الاقتراح]", value="يرسل اقتراحك بشكل مرتب في الشات مع تفاعل الأزرار 👍 و 👎 لتصويت الأعضاء.", inline=False)
     embed.add_field(name="📢 -announce [العنوان] [النص]", value="يرسل إمبيد إعلاني رسمي ومرتب في الشات مع اسم الإداري الذي أرسله (يتطلب صلاحية المسؤول).", inline=False)
-    embed.add_field(name="🐾 الردود الطريفة", value="• منو قطوتي -> مياو 🐱\n• منو كلبي -> هو هو 🐶\n• منو بطتي -> بط بط 🦆", inline=False)
+    embed.add_field(name="🐾 الردود الطريفة (بدون بريفكس)", value="• منو قطوتي -> مياو 🐱\n• منو كلبي -> هو هو 🐶\n• منو بطتي -> بط بط 🦆", inline=False)
     embed.add_field(name="👋 الترحيب التلقائي", value="وظيفة تلقائية تعمل وحدها فور دخول أي عضو جديد للسيرفر وترسل ترحيباً في روم الترحيب.", inline=False)
     
     await ctx.send(embed=embed)
 
-# ==================== 1. الردود الطريفة (القطوة، الكلب، البطّة) ====================
-@bot.command(name="منو_قطوتي")
-async def cat_sound(ctx):
-    await ctx.send("مياو 🐱")
+# ==================== الردود الذكية (بدون بريفكس وبدون شخطة) ====================
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
 
-@bot.command(name="منو_كلبي")
-async def dog_sound(ctx):
-    await ctx.send("هو هو 🐶")
+    content = message.content.strip()
 
-@bot.command(name="منو_بطتي")
-async def duck_sound(ctx):
-    await ctx.send("بط بط 🦆")
+    if content == "منو قطوتي":
+        await message.channel.send("مياو 🐱")
+    elif content == "منو كلبي":
+        await message.channel.send("هو هو 🐶")
+    elif content == "منو بطتي":
+        await message.channel.send("بط بط 🦆")
 
-# ==================== 2. بوت بينج (Ping) ====================
+    # مهم جداً لتشغيل باقي الأوامر (مثل -k و -ping وغيرها)
+    await bot.process_commands(message)
+
+# ==================== 1. بوت بينج (Ping) ====================
 @bot.command(name="ping")
 async def ping(ctx):
     latency = round(bot.latency * 1000)
     await ctx.send(f"🏓 Pong! السرعة: `{latency}ms`")
 
-# ==================== 3. بوت حذف الشات (Clear) ====================
+# ==================== 2. بوت حذف الشات (Clear) ====================
 @bot.command(name="clear")
 @commands.has_permissions(manage_messages=True)
 async def clear(ctx, amount: int):
@@ -67,7 +72,7 @@ async def clear(ctx, amount: int):
     except:
         pass
 
-# ==================== 4. بوت ترحيب (Welcome) ====================
+# ==================== 3. بوت ترحيب (Welcome) ====================
 @bot.event
 async def on_member_join(member: discord.Member):
     for channel in member.guild.text_channels:
@@ -75,7 +80,7 @@ async def on_member_join(member: discord.Member):
             await channel.send(f"حياك الله {member.mention}، نورت السيرفر! 🎉")
             break
 
-# ==================== 5. بوت معلومات (Server Info) ====================
+# ==================== 4. بوت معلومات (Server Info) ====================
 @bot.command(name="server")
 async def server_info(ctx):
     guild = ctx.guild
@@ -87,7 +92,7 @@ async def server_info(ctx):
     embed.add_field(name="📅 تاريخ الإنشاء", value=guild.created_at.strftime("%Y-%m-%d"), inline=True)
     await ctx.send(embed=embed)
 
-# ==================== 6. بوت أفاتار (Avatar) ====================
+# ==================== 5. بوت أفاتار (Avatar) ====================
 @bot.command(name="avatar")
 async def avatar(ctx, user: discord.Member = None):
     target = user or ctx.author
@@ -95,7 +100,7 @@ async def avatar(ctx, user: discord.Member = None):
     embed.set_image(url=target.display_avatar.url)
     await ctx.send(embed=embed)
 
-# ==================== 7. بوت قوانين (Rules) ====================
+# ==================== 6. بوت قوانين (Rules) ====================
 @bot.command(name="rules")
 @commands.has_permissions(administrator=True)
 async def rules(ctx):
@@ -106,7 +111,7 @@ async def rules(ctx):
     embed.add_field(name="3️⃣ الإعلانات", value="يمنع نشر روابط سيرفرات أخرى أو روابط خارجية.", inline=False)
     await ctx.send(embed=embed)
 
-# ==================== 8. بوت اقتراحات (Suggest) ====================
+# ==================== 7. بوت اقتراحات (Suggest) ====================
 @bot.command(name="suggest")
 async def suggest(ctx, *, suggestion: str):
     await ctx.message.delete()
@@ -117,7 +122,7 @@ async def suggest(ctx, *, suggestion: str):
     await msg.add_reaction("👍")
     await msg.add_reaction("👎")
 
-# ==================== 9. بوت إعلان (Announce) ====================
+# ==================== 8. بوت إعلان (Announce) ====================
 @bot.command(name="announce")
 @commands.has_permissions(administrator=True)
 async def announce(ctx, title: str, *, message: str):
