@@ -33,7 +33,7 @@ shop_items = {
 
 @bot.event
 async def on_ready():
-    print(f'البوت شغال وجاهز باسم: {bot.user}')
+    print(f'البوت الشامل شغال وجاهز باسم: {bot.user}')
 
 def get_balance(user_id):
     return economy_db.get(user_id, 0)
@@ -49,10 +49,16 @@ def get_log_channel(guild):
             return channel
     return None
 
+def get_tell_channel(guild):
+    for channel in guild.text_channels:
+        if "tell" in channel.name.lower() or "صارحني" in channel.name or "مصارحات" in channel.name:
+            return channel
+    return None
+
 # ==================== قائمة الأوامر العامة (-k) ====================
 @bot.command(name="k")
 async def help_menu(ctx):
-    embed = discord.Embed(title="قائمة أوامر البوت الشاملة", description="إليك كافة الأوامر المتاحة وطريقة استخدامها (اكتب `-c` لعرض أوامر الاقتصاد):", color=discord.Color.blue())
+    embed = discord.Embed(title="قائمة أوامر البوت الشاملة", description="إليك كافة الأوامر المتاحة وطريقة استخدامها:", color=discord.Color.blue())
     
     embed.add_field(name="-ping", value="يقيس سرعة استجابة البوت.", inline=False)
     embed.add_field(name="-clear [العدد]", value="حذف الرسائل دفعة واحدة.", inline=False)
@@ -63,6 +69,7 @@ async def help_menu(ctx):
     embed.add_field(name="-announce [العنوان] [النص]", value="إرسال إعلان رسمي مرتب.", inline=False)
     embed.add_field(name="-log", value="لوحة تحكم السجلات.", inline=False)
     embed.add_field(name="-c", value="عرض قائمة أوامر الاقتصاد والألعاب والمتجر بالتفصيل.", inline=False)
+    embed.add_field(name="-tell", value="عرض نظام المصارحات (Tellonym) والشرح والترجمة.", inline=False)
     
     embed.add_field(name="الردود الذكية (بدون بريفكس)", value="• منو قطوتي -> مياو\n• منو بطتي -> بط بط\n• شاطر / شاطرة -> كلزق", inline=False)
     embed.add_field(name="الحماية والسجلات", value="منع السبام، مكافحة الرايد، وسجلات الرومات والرتب والرسائل.", inline=False)
@@ -75,14 +82,75 @@ async def economy_help(ctx):
     embed = discord.Embed(title="💰 قائمة أوامر الاقتصاد والألعاب والمتجر", description="إليك كافة الأوامر المالية وطريقة استخدامها:", color=discord.Color.gold())
     
     embed.add_field(name="الأوامر الأساسية", value="• `-balance` أو `-bal [@user]` : يعرض رصيدك أو رصيد شخص آخر.\n• `-daily` : يمنحك مكافأة يومية (500 Coins كل 24 ساعة).\n• `-work` : تذهب للعمل وتكسب مبلغاً عشوائياً (100-300 Coins) كل ساعة.\n• `-beg` : تشحذ للحصول على مبلغ بسيط (10-100 Coins) كل 15 دقيقة.\n• `-pay [@user] [المبلغ]` : تحويل عملات لشخص آخر في السيرفر.\n• `-leaderboard` أو `-lb` : يعرض قائمة أغنى 10 أشخاص في السيرفر.", inline=False)
-    
     embed.add_field(name="ألعاب الحظ والمراهنات", value="• `-slots [المبلغ]` : ماكينة الحظ لمضاعفة أرباحك.\n• `-dice [المبلغ]` : رمي النرد والمنافسة ضد البوت.\n• `-coinflip [المبلغ] [صورة/كتابة]` : مراهنة العملة المعدنية.", inline=False)
-    
-    embed.add_field(name="المتجر والحقيبة", value="• `-shop` : يعرض قائمة المنتجات المتاحة للشراء.\n• `-buy [اسم المنتج]` : لشراء منتج من المتجر.\n• `-inventory` : يعرض حقيبتك وما تحتويه من عناصر.\n• `-use [اسم المنتج]` : لاستخدام عنصر قمت بشرائه.", inline=False)
-    
-    embed.add_field(name="أوامر الإدارة المالية (تتطلب مسؤول)", value="• `-addcoins [@user] [المبلغ]` : إضافة عملات.\n• `-removecoins [@user] [المبلغ]` : خصم عملات.\n• `-setcoins [@user] [المبلغ]` : تعيين رصيد محدد.\n• `-resetcoins [@user]` : تصفير رصيد المستخدم.", inline=False)
+    embed.add_field(name="المتجر والحقيبة", value="• `-shop` : يعرض قائمة المنتجات المتاحة للشراء.\n• `-buy [اسم المنتج]` : لشراء منتج من المتجر.\n• `-inventory` : يعرض حقيبتك وما تحويه من عناصر.\n• `-use [اسم المنتج]` : لاستخدام عنصر قمت بشرائه.", inline=False)
+    embed.add_field(name="أوامر الإدارة المالية (تتطلب مسؤول)", value="• `-addcoins [@user] [المبلغ]`\n• `-removecoins [@user] [المبلغ]`\n• `-setcoins [@user] [المبلغ]`\n• `-resetcoins [@user]`", inline=False)
     
     await ctx.send(embed=embed)
+
+# ==================== نظام التليون (-tell) ====================
+@bot.command(name="tell")
+async def tell_help(ctx):
+    embed = discord.Embed(
+        title="💌 نظام المصارحات (Tellonym System)",
+        description="إليك كافة الأوامر والشرح والترجمة الخاصة بنظام المصارحات السرية في السيرفر:",
+        color=discord.Color.purple()
+    )
+    
+    embed.add_field(
+        name="📌 ما هو نظام Tellonym؟",
+        value="نظام يسمح للأعضاء بإرسال رسائل ومصارحات سرية أو علنية لبعضهم البعض بشكل ممتع ومنظم.",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="⚙️ الأوامر وطريقة الاستخدام",
+        value=(
+            "• `-tell` : يعرض لك هذه القائمة الشاملة والشرح.\n"
+            "• `-sendtell [@العضو] [الرسالة]` : لإرسال مصارحة (تيل) سرية وموجهة للعضو.\n"
+            "• `-setchannel` : تعيين روم مخصص لاستقبال المصارحات (خاص بالإدارة)."
+        ),
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🌐 الترجمة والمصطلحات (Translation)",
+        value=(
+            "• **Tellonym / Tell** = مصارحة أو رسالة سرية.\n"
+            "• **Anonymous** = مجهول (بدون ذكر اسم المرسل).\n"
+            "• **Inbox** = صندوق الوارد الخاص بالمصارحات."
+        ),
+        inline=False
+    )
+    
+    embed.set_footer(text=f"طلب بواسطة: {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
+    await ctx.send(embed=embed)
+
+@bot.command(name="sendtell")
+async def send_tell(ctx, member: discord.Member, *, message_text: str):
+    await ctx.message.delete()
+    if member.id == ctx.author.id:
+        await ctx.send("❌ لا يمكنك إرسال مصارحة لنفسك!", delete_after=5)
+        return
+
+    embed = discord.Embed(
+        title="💌 وصلت لك مصارحة جديدة (New Tell)",
+        description=f"```{message_text}```",
+        color=discord.Color.magenta()
+    )
+    embed.set_footer(text="تم إرسال هذه المصارحة عبر نظام Tellonym المجهول.")
+
+    try:
+        await member.send(embed=embed)
+        await ctx.send(f"✅ {ctx.author.mention}، تم إرسال مصارحتك إلى {member.mention} بنجاح!", delete_after=5)
+    except:
+        tell_chan = get_tell_channel(ctx.guild)
+        if tell_chan:
+            embed.add_field(name="إلى العضو", value=member.mention, inline=False)
+            await tell_chan.send(embed=embed)
+            await ctx.send(f"✅ {ctx.author.mention}، تم نشر المصارحة في روم المصارحات لأن خاص العضو مغلق.", delete_after=5)
+        else:
+            await ctx.send("❌ تعذر إرسال المصارحة (خاص العضو مغلق ولا يوجد روم مصارحات عام).", delete_after=5)
 
 # ==================== الأوامر الاقتصادية ====================
 @bot.command(aliases=["bal"])
@@ -307,12 +375,17 @@ async def resetcoins(ctx, member: discord.Member):
     economy_db[member.id] = 0
     await ctx.send(f"✅ تم تصفير رصيد {member.mention}.")
 
+@bot.command(name="setchannel")
+@commands.has_permissions(administrator=True)
+async def set_channel(ctx):
+    await ctx.send(f"✅ {ctx.author.mention}، سيقوم البوت تلقائياً بالاعتماد على أي روم يحتوي على اسم (tell أو صارحني أو مصارحات أو سجلات) لتلقي الرسائل.")
+
 # ==================== لوحة السجلات (-log) ====================
 @bot.command(name="log")
 @commands.has_permissions(administrator=True)
 async def log_status(ctx):
     log_chan = get_log_channel(ctx.guild)
-    channel_name = log_chan.mention if log_chan else "⚠️ لم يتم العثور على روم (أنشئ روم يحتوي على كلمة log أو سجلات)"
+    channel_name = log_chan.mention if log_chan else "⚠️ لم يتم العثور على روم سجلات"
     
     embed = discord.Embed(title="📊 لوحة تحكم وحالة السجلات (Logs)", color=discord.Color.dark_blue())
     embed.add_field(name="📌 روم السجلات الحالي", value=channel_name, inline=False)
@@ -320,7 +393,7 @@ async def log_status(ctx):
     embed.set_footer(text=f"بواسطة: {ctx.author.display_name}")
     await ctx.send(embed=embed)
 
-# ==================== الأحداث (الردود، الحماية، السجلات، الترحيب) ====================
+# ==================== الأحداث والأجهزة في الخلفية ====================
 @bot.event
 async def on_message(message):
     if message.author.bot or not message.guild:
@@ -372,7 +445,6 @@ async def on_member_join(member: discord.Member):
             await channel.send(f"حياك الله {member.mention}، نورت السيرفر!")
             break
 
-# السجلات التلقائية
 @bot.event
 async def on_message_delete(message):
     if message.author.bot or not message.guild:
@@ -422,7 +494,7 @@ async def on_guild_role_delete(role):
     if log_chan:
         await log_chan.send(f"➖ **تم حذف رتبة:** `{role.name}`")
 
-# أوامر الأدوات الأساسية
+# ==================== الأوامر الأساسية ====================
 @bot.command(name="ping")
 async def ping(ctx):
     latency = round(bot.latency * 1000)
