@@ -41,23 +41,26 @@ async def games_menu(ctx):
     )
     await ctx.send(embed=embed)
 
-# ==================== نظام أزرار ولعبة المافيا المحدثة ====================
+# ==================== نظام أزرار ولعبة المافيا المطابقة للصورة ====================
 
 class JoinGameView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=30) # 30 ثانية للتسجيل
         self.participants = []
 
-    @discord.ui.button(label="انضمام 🎮", style=discord.ButtonStyle.green, custom_id="join_btn")
+    @discord.ui.button(label="دخول 👤+", style=discord.ButtonStyle.secondary, custom_id="join_btn")
     async def join_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user not in self.participants:
+            if len(self.participants) >= 24:
+                await interaction.response.send_message("⚠️ عذراً، اكتمل العدد الأقصى (24 لاعب)!", ephemeral=True)
+                return
             self.participants.append(interaction.user)
             await interaction.response.send_message("✅ تم انضمامك بنجاح للعبة المافيا!", ephemeral=True)
             await self.update_embed(interaction)
         else:
             await interaction.response.send_message("⚠️ أنت منضم مسبقاً!", ephemeral=True)
 
-    @discord.ui.button(label="انسحاب ❌", style=discord.ButtonStyle.red, custom_id="leave_btn")
+    @discord.ui.button(label="خروج 👤-", style=discord.ButtonStyle.secondary, custom_id="leave_btn")
     async def leave_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user in self.participants:
             self.participants.remove(interaction.user)
@@ -67,11 +70,13 @@ class JoinGameView(discord.ui.View):
             await interaction.response.send_message("⚠️ أنت لست منضماً أصلاً!", ephemeral=True)
 
     async def update_embed(self, interaction: discord.Interaction):
+        count = len(self.participants)
         names = "\n".join([f"• {p.display_name}" for p in self.participants]) if self.participants else "لا يوجد لاعبين حتى الآن..."
+        
         embed = discord.Embed(
-            title="🕵️ لعبة المافيا - تسجيل الدخول",
-            description=f"اضغط على زر **انضمام 🎮** للمشاركة أو **انسحاب ❌** للتراجع.\n⏳ **الوقت المتبقي: 30 ثانية**\n\n**اللاعبون المنضمون ({len(self.participants)}):**\n{names}",
-            color=discord.Color.gold()
+            title=f"اللاعبين: {count}/24",
+            description="🎩\n### مافيا\nأضغط على زر دخول للإنضمام إلى اللعبة\n\n**المسجلون حالياً:**\n" + names,
+            color=discord.Color.dark_theme()
         )
         await interaction.message.edit(embed=embed, view=self)
 
@@ -96,9 +101,9 @@ class TargetButton(discord.ui.Button):
 async def cmd_mafia(ctx):
     view = JoinGameView()
     embed = discord.Embed(
-        title="🕵️ لعبة المافيا - تسجيل الدخول",
-        description="اضغط على **انضمام 🎮** للدخول باللعبة (معاكم 30 ثانية والحد الأدنى 4 لاعبين):",
-        color=discord.Color.gold()
+        title="اللاعبين: 0/24",
+        description="🎩\n### مافيا\nأضغط على زر دخول للإنضمام إلى اللعبة",
+        color=discord.Color.dark_theme()
     )
     msg = await ctx.send(embed=embed, view=view)
     
@@ -107,12 +112,12 @@ async def cmd_mafia(ctx):
     
     participants = view.participants
 
-    # التحقق من الشرط (أربعة لاعبين أو أكثر)
+    # التحقق من أن العدد 4 لاعبين أو أكثر
     if len(participants) < 4:
-        await ctx.send(f"❌ تم إلغاء اللعبة! عدد المنضمين ({len(participants)}) أقل من 4 لاعبين.")
+        await ctx.send(f"❌ تم إلغاء اللعبة! عدد المنضمين ({len(participants)}) أقل من الحد الأدنى (4 لاعبين).")
         return
 
-    # تعطيل الأزرار بعد بدء اللعبة
+    # تعطيل الأزرار بعد انتهاء الوقت
     for child in view.children:
         child.disabled = True
     try:
@@ -120,7 +125,7 @@ async def cmd_mafia(ctx):
     except:
         pass
 
-    # اختيار المافيا والطبيب وتحديد المواطنين
+    # توزيع الأدوار
     random.shuffle(participants)
     mafia_player = participants[0]
     doctor_player = participants[1]
@@ -143,42 +148,43 @@ async def cmd_mafia(ctx):
 
     # 1. بداية الليل ودور الطبيب أولاً
     await ctx.send("🌙 **حل الليل... تنام المدينة.**")
-    await ctx.send("💉 **دور الطبيب الآن!** (تصل رسالة للطبيب باختيار الشخص الذي يريد حمايته...)")
+    await ctx.send("💉 **دور الطبيب الآن!** (تصل رسالة خاصة للطبيب لاختيار من يحميه...)")
 
     doctor_target = None
     try:
         view_doctor = TargetSelectView(participants)
-        doc_msg = await doctor_player.send("💉 **اختر الشخص الذي تريد حمايته هذه الليلة:**", view=view_doctor)
+        await doctor_player.send("💉 **اختر الشخص الذي تريد حمايته هذه الليلة:**", view=view_doctor)
         await view_doctor.wait()
         doctor_target = view_doctor.selected_target
     except:
         pass
 
     # 2. دور المافيا ثانياً
-    await ctx.send("🔪 **دور المافيا الآن!** (تصل رسالة للمافيا باختيار الضحية...)")
+    await ctx.send("🔪 **دور المافيا الآن!** (تصل رسالة خاصة للمافيا لاختيار الضحية...)")
 
     mafia_target = None
     try:
         view_mafia = TargetSelectView(participants)
-        maf_msg = await mafia_player.send("🔪 **اختر الشخص الذي تريد قتله هذه الليلة:**", view=view_mafia)
+        await mafia_player.send("🔪 **اختر الشخص الذي تريد قتله هذه الليلة:**", view=view_mafia)
         await view_mafia.wait()
         mafia_target = view_mafia.selected_target
     except:
         pass
 
     await asyncio.sleep(2)
-    await ctx.send("☀️ **أشرقت شمس اليوم الجديد!**")
+    await ctx.send("☀️ **أشرقت شمس اليوم الجديد!** حان وقت الكشف عن الأحداث...")
 
-    # 3. النتيجة والتأكد من الحماية
+    # 3. النتيجة بحسب شروطك الدقيقة
     if mafia_target and mafia_target == doctor_target:
         await ctx.send(f"🛡️ **تمت حماية {mafia_target.display_name} من قبل الطبيب من القاتل!** ولم يمت أحد هذه الليلة. 🎉")
     elif mafia_target:
         await ctx.send(f"💀 للأسف، نجحت المافيا وتم اغتيال اللاعب **{mafia_target.display_name}**!")
-        participants.remove(mafia_target)
+        if mafia_target in participants:
+            participants.remove(mafia_target)
     else:
         await ctx.send("🌅 لم تحدث أي حالة قتل هذه الليلة!")
 
-    # 4. التصويت الجماعي
+    # 4. مرحلة التصويت الجماعي
     await ctx.send("🗳️ **بدأ التصويت!** من تعتقدون أنه المافيا؟ (اكتب اسم الشخص أو سوِّ له منشن خلال 15 ثانية)")
 
     votes = {}
