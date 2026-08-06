@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 import random
 import asyncio
+import io
+import aiohttp
 from keep_alive import keep_alive
 import os
 
@@ -20,8 +22,15 @@ def add_points(user_id, points):
 async def on_ready():
     print(f'البوت شغال وجاهز باسم: {bot.user}')
 
-# رابط الصورة الثابت (بدون وميض)
-MAFIA_IMAGE_URL = "https://cdn.discordapp.com/attachments/1534223835031801956/1534963863999483954/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a7609ff&is=6a74b87f&hm=d41721366c2cdb2f11ac853cb27d9134ee2b59ce2280eae5ad2355ad904e4435&"
+# دالة لتحميل الصورة وإرسالها كملف حقيقي بدون روابط
+async def get_mafia_file():
+    image_url = "https://cdn.discordapp.com/attachments/1534223835031801956/1534963863999483954/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a7609ff&is=6a74b87f&hm=d41721366c2cdb2f11ac853cb27d9134ee2b59ce2280eae5ad2355ad904e4435&"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(image_url) as resp:
+            if resp.status == 200:
+                data = await resp.read()
+                return discord.File(io.BytesIO(data), filename="mafia.png")
+    return None
 
 # ==================== قائمة الألعاب الكاملة ====================
 @bot.command(name='العاب')
@@ -44,7 +53,7 @@ async def games_menu(ctx):
     )
     await ctx.send(embed=embed)
 
-# ==================== لعبة المافيا (بدون وميض وبشكل ثابت) ====================
+# ==================== لعبة المافيا بدون روابط وبشكل نظيف ====================
 
 class JoinGameView(discord.ui.View):
     def __init__(self):
@@ -59,7 +68,7 @@ class JoinGameView(discord.ui.View):
                 return
             self.participants.append(interaction.user)
             await interaction.response.send_message("✅ تم انضمامك بنجاح للعبة المافيا!", ephemeral=True)
-            await self.update_embed(interaction, 30)
+            await self.update_content(interaction, 30)
         else:
             await interaction.response.send_message("⚠️ أنت منضم مسبقاً!", ephemeral=True)
 
@@ -68,20 +77,17 @@ class JoinGameView(discord.ui.View):
         if interaction.user in self.participants:
             self.participants.remove(interaction.user)
             await interaction.response.send_message("❌ تم انسحابك من اللعبة.", ephemeral=True)
-            await self.update_embed(interaction, 30)
+            await self.update_content(interaction, 30)
         else:
             await interaction.response.send_message("⚠️ أنت لست منضماً أصلاً!", ephemeral=True)
 
-    async def update_embed(self, interaction: discord.Interaction, remaining_time):
+    async def update_content(self, interaction: discord.Interaction, remaining_time):
         count = len(self.participants)
-        embed = discord.Embed(
-            title="🎮 لعبة المافيا",
-            description=f"**اللاعبين:** {count}/24\n**الوقت المتبقي:** {remaining_time} ثواني",
-            color=discord.Color.dark_embed()
-        )
-        embed.set_image(url=MAFIA_IMAGE_URL)
+        content = f"**اللاعبين:** {count}/24\nin {remaining_time} seconds"
         try:
-            await interaction.message.edit(embed=embed, view=self)
+            # الحفاظ على الصورة المرفقة وعدم حذفها أثناء التحديث
+            file = await get_mafia_file()
+            await interaction.message.edit(content=content, attachments=[file] if file else [], view=self)
         except:
             pass
 
@@ -104,30 +110,20 @@ class TargetButton(discord.ui.Button):
 
 @bot.command(name='مافيا')
 async def cmd_mafia(ctx):
-    embed = discord.Embed(
-        title="🎮 لعبة المافيا",
-        description="**اللاعبين:** 0/24\n**الوقت المتبقي:** 30 ثانية",
-        color=discord.Color.dark_embed()
-    )
-    embed.set_image(url=MAFIA_IMAGE_URL)
+    file = await get_mafia_file()
+    initial_text = "**اللاعبين:** 0/24\nin 30 seconds"
     
     view = JoinGameView()
-    msg = await ctx.send(embed=embed, view=view)
+    msg = await ctx.send(content=initial_text, file=file, view=view)
 
-    # عد تنازلي لمدة 30 ثانية وتحديث سلس بدون أي وميض للصورة
+    # عد تنازلي لمدة 30 ثانية وتحديث الوقت والثواني بدون أي روابط نصية
     for remaining in range(29, -1, -1):
         await asyncio.sleep(1)
         count = len(view.participants)
-        
-        updated_embed = discord.Embed(
-            title="🎮 لعبة المافيا",
-            description=f"**اللاعبين:** {count}/24\n**الوقت المتبقي:** {remaining} ثواني",
-            color=discord.Color.dark_embed()
-        )
-        updated_embed.set_image(url=MAFIA_IMAGE_URL)
-        
+        updated_text = f"**اللاعبين:** {count}/24\nin {remaining} seconds"
         try:
-            await msg.edit(embed=updated_embed, view=view)
+            current_file = await get_mafia_file()
+            await msg.edit(content=updated_text, attachments=[current_file] if current_file else [], view=view)
         except:
             break
 
@@ -135,16 +131,9 @@ async def cmd_mafia(ctx):
 
     for child in view.children:
         child.disabled = True
-    
-    final_embed = discord.Embed(
-        title="🎮 لعبة المافيا (انتهى التسجيل)",
-        description=f"**عدد اللاعبين المشاركين:** {len(participants)}/24",
-        color=discord.Color.red()
-    )
-    final_embed.set_image(url=MAFIA_IMAGE_URL)
-    
     try:
-        await msg.edit(embed=final_embed, view=view)
+        current_file = await get_mafia_file()
+        await msg.edit(content="**انتهى وقت التسجيل في اللعبة!**", attachments=[current_file] if current_file else [], view=view)
     except:
         pass
 
@@ -342,7 +331,7 @@ async def cmd_rps(ctx, choice: str = None):
         res = "تعادل 🤝"
     elif (choice == "حجر" and bot_choice == "مقص") or (choice == "ورقة" and bot_choice == "حجر") or (choice == "مقص" and bot_choice == "ورقة"):
         res = "فزت علي! 🎉 (+10 نقاط)"
-        add_points(ctx.author.id, 10)
+        add_points(msg.author.id, 10)
     else:
         res = "أنا فزت عليك! 🤖"
     await ctx.send(f"اختيارك: {choice} | اختياري: {bot_choice}\nالنتيجة: **{res}**")
