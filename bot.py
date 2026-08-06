@@ -45,7 +45,7 @@ async def games_menu(ctx):
 
 class JoinGameView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=30) # 30 ثانية للتسجيل
+        super().__init__(timeout=30)
         self.participants = []
 
     @discord.ui.button(label="دخول 👤+", style=discord.ButtonStyle.secondary, custom_id="join_btn")
@@ -56,7 +56,7 @@ class JoinGameView(discord.ui.View):
                 return
             self.participants.append(interaction.user)
             await interaction.response.send_message("✅ تم انضمامك بنجاح للعبة المافيا!", ephemeral=True)
-            await self.update_embed(interaction)
+            await self.update_embed(interaction, 30)
         else:
             await interaction.response.send_message("⚠️ أنت منضم مسبقاً!", ephemeral=True)
 
@@ -65,20 +65,25 @@ class JoinGameView(discord.ui.View):
         if interaction.user in self.participants:
             self.participants.remove(interaction.user)
             await interaction.response.send_message("❌ تم انسحابك من اللعبة.", ephemeral=True)
-            await self.update_embed(interaction)
+            await self.update_embed(interaction, 30)
         else:
             await interaction.response.send_message("⚠️ أنت لست منضماً أصلاً!", ephemeral=True)
 
-    async def update_embed(self, interaction: discord.Interaction):
+    async def update_embed(self, interaction: discord.Interaction, remaining_time):
         count = len(self.participants)
         names = "\n".join([f"• {p.display_name}" for p in self.participants]) if self.participants else "لا يوجد لاعبين حتى الآن..."
         
         embed = discord.Embed(
             title=f"اللاعبين: {count}/24",
-            description="🎩\n### مافيا\nأضغط على زر دخول للإنضمام إلى اللعبة\n\n**المسجلون حالياً:**\n" + names,
+            description=f"in {remaining_time} seconds\n\n🎩\n### مافيا\nأضغط على زر دخول للإنضمام إلى اللعبة\n\n**المسجلون حالياً:**\n" + names,
             color=discord.Color.dark_theme()
         )
-        await interaction.message.edit(embed=embed, view=self)
+        embed.set_image(url="https://cdn.discordapp.com/attachments/1534223835031801956/1534961993503604736/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a760841&is=6a74b6c1&hm=6fa313de223f874fe63edadc5c7855934bf9da5f32a08fd02baba9ec35a6fcf2&")
+        
+        try:
+            await interaction.message.edit(embed=embed, view=self)
+        except:
+            pass
 
 class TargetSelectView(discord.ui.View):
     def __init__(self, players):
@@ -102,20 +107,27 @@ async def cmd_mafia(ctx):
     view = JoinGameView()
     embed = discord.Embed(
         title="اللاعبين: 0/24",
-        description="🎩\n### مافيا\nأضغط على زر دخول للإنضمام إلى اللعبة",
+        description="in 30 seconds\n\n🎩\n### مافيا\nأضغط على زر دخول للإنضمام إلى اللعبة",
         color=discord.Color.dark_theme()
     )
+    embed.set_image(url="https://cdn.discordapp.com/attachments/1534223835031801956/1534961993503604736/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a760841&is=6a74b6c1&hm=6fa313de223f874fe63edadc5c7855934bf9da5f32a08fd02baba9ec35a6fcf2&")
+    
     msg = await ctx.send(embed=embed, view=view)
     
-    # انتظار 30 ثانية
-    await view.wait()
-    
-    participants = view.participants
+    # عد تنازلي لمدة 30 ثانية وتحديث الوقت في الرسالة كل ثانية
+    for remaining in range(29, -1, -1):
+        await asyncio.sleep(1)
+        count = len(view.participants)
+        names = "\n".join([f"• {p.display_name}" for p in view.participants]) if view.participants else "لا يوجد لاعبين حتى الآن..."
+        
+        embed.title = f"اللاعبين: {count}/24"
+        embed.description = f"in {remaining} seconds\n\n🎩\n### مافيا\nأضغط على زر دخول للإنضمام إلى اللعبة\n\n**المسجلون حالياً:**\n" + names
+        try:
+            await msg.edit(embed=embed, view=view)
+        except:
+            break
 
-    # التحقق من أن العدد 4 لاعبين أو أكثر
-    if len(participants) < 4:
-        await ctx.send(f"❌ تم إلغاء اللعبة! عدد المنضمين ({len(participants)}) أقل من الحد الأدنى (4 لاعبين).")
-        return
+    participants = view.participants
 
     # تعطيل الأزرار بعد انتهاء الوقت
     for child in view.children:
@@ -124,6 +136,11 @@ async def cmd_mafia(ctx):
         await msg.edit(view=view)
     except:
         pass
+
+    # التحقق من أن العدد 5 لاعبين على الأقل
+    if len(participants) < 5:
+        await ctx.send("**تم إيقاف اللعبة لعدم وجود `5` لاعبين على الأقل - ⛔.**")
+        return
 
     # توزيع الأدوار
     random.shuffle(participants)
