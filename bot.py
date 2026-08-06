@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 import random
 import asyncio
+import io
+import aiohttp
 from keep_alive import keep_alive
 import os
 
@@ -19,6 +21,16 @@ def add_points(user_id, points):
 @bot.event
 async def on_ready():
     print(f'البوت شغال وجاهز باسم: {bot.user}')
+
+# دالة لتحميل الصورة وإرسالها كملف حقيقي بدون روابط
+async def get_mafia_file():
+    image_url = "https://cdn.discordapp.com/attachments/1534223835031801956/1534963863999483954/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a7609ff&is=6a74b87f&hm=d41721366c2cdb2f11ac853cb27d9134ee2b59ce2280eae5ad2355ad904e4435&"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(image_url) as resp:
+            if resp.status == 200:
+                data = await resp.read()
+                return discord.File(io.BytesIO(data), filename="mafia.png")
+    return None
 
 # ==================== قائمة الألعاب الكاملة ====================
 @bot.command(name='العاب')
@@ -41,13 +53,12 @@ async def games_menu(ctx):
     )
     await ctx.send(embed=embed)
 
-# ==================== لعبة المافيا (بدون إطار رمادي وبشكل شفاف) ====================
+# ==================== لعبة المافيا بدون روابط وبشكل نظيف ====================
 
 class JoinGameView(discord.ui.View):
-    def __init__(self, message_to_edit):
+    def __init__(self):
         super().__init__(timeout=30)
         self.participants = []
-        self.msg_to_edit = message_to_edit
 
     @discord.ui.button(label="دخول 👤+", style=discord.ButtonStyle.secondary, custom_id="join_btn")
     async def join_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -72,10 +83,11 @@ class JoinGameView(discord.ui.View):
 
     async def update_content(self, interaction: discord.Interaction, remaining_time):
         count = len(self.participants)
-        image_url = "https://cdn.discordapp.com/attachments/1534223835031801956/1534963863999483954/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a7609ff&is=6a74b87f&hm=d41721366c2cdb2f11ac853cb27d9134ee2b59ce2280eae5ad2355ad904e4435&"
-        content = f"**اللاعبين:** {count}/24\nin {remaining_time} seconds\n{image_url}"
+        content = f"**اللاعبين:** {count}/24\nin {remaining_time} seconds"
         try:
-            await interaction.message.edit(content=content, view=self)
+            # الحفاظ على الصورة المرفقة وعدم حذفها أثناء التحديث
+            file = await get_mafia_file()
+            await interaction.message.edit(content=content, attachments=[file] if file else [], view=self)
         except:
             pass
 
@@ -98,20 +110,20 @@ class TargetButton(discord.ui.Button):
 
 @bot.command(name='مافيا')
 async def cmd_mafia(ctx):
-    image_url = "https://cdn.discordapp.com/attachments/1534223835031801956/1534963863999483954/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a7609ff&is=6a74b87f&hm=d41721366c2cdb2f11ac853cb27d9134ee2b59ce2280eae5ad2355ad904e4435&"
-    initial_text = "**اللاعبين:** 0/24\nin 30 seconds\n" + image_url
+    file = await get_mafia_file()
+    initial_text = "**اللاعبين:** 0/24\nin 30 seconds"
     
-    view = JoinGameView(None)
-    msg = await ctx.send(content=initial_text, view=view)
-    view.msg_to_edit = msg
+    view = JoinGameView()
+    msg = await ctx.send(content=initial_text, file=file, view=view)
 
-    # عد تنازلي لمدة 30 ثانية
+    # عد تنازلي لمدة 30 ثانية وتحديث الوقت والثواني بدون أي روابط نصية
     for remaining in range(29, -1, -1):
         await asyncio.sleep(1)
         count = len(view.participants)
-        updated_text = f"**اللاعبين:** {count}/24\nin {remaining} seconds\n" + image_url
+        updated_text = f"**اللاعبين:** {count}/24\nin {remaining} seconds"
         try:
-            await msg.edit(content=updated_text, view=view)
+            current_file = await get_mafia_file()
+            await msg.edit(content=updated_text, attachments=[current_file] if current_file else [], view=view)
         except:
             break
 
@@ -120,7 +132,8 @@ async def cmd_mafia(ctx):
     for child in view.children:
         child.disabled = True
     try:
-        await msg.edit(view=view)
+        current_file = await get_mafia_file()
+        await msg.edit(content="**انتهى وقت التسجيل في اللعبة!**", attachments=[current_file] if current_file else [], view=view)
     except:
         pass
 
@@ -212,7 +225,7 @@ async def cmd_mafia(ctx):
     else:
         await ctx.send("⏰ انتهى الوقت دون إبعاد أحد ونجت المافيا!")
 
-# ==================== الألعاب الجماعية ====================
+# ==================== الألعاب الجماعية والفردية وباقي الأوامر ====================
 
 @bot.command(name='روليت')
 async def cmd_roulette(ctx):
@@ -331,8 +344,6 @@ async def cmd_xo(ctx):
 async def cmd_azar(ctx):
     await ctx.send(f"⚡ بدأت لعبة أزار والتحديات السريعة!")
 
-# ==================== الألعاب الفردية ====================
-
 @bot.command(name='حساب')
 async def cmd_math(ctx):
     n1, n2 = random.randint(1, 50), random.randint(1, 50)
@@ -445,8 +456,6 @@ async def cmd_reverse(ctx):
 @bot.command(name='مفرد')
 async def cmd_mufrad(ctx):
     await ctx.send(f"👤 أوجد مفرد الكلمة التالية: (أقلام)")
-
-# ==================== الأوامر العامة والأخرى ====================
 
 @bot.command(name='تصويت')
 async def cmd_vote(ctx, *, topic: str = "تصويت جديد"):
