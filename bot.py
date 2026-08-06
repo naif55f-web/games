@@ -47,108 +47,107 @@ ticket_settings = {
 async def on_ready():
     print(f'بوت Naxo الشخصي الشامل يعمل بنجاح: {bot.user}')
 
-# ==================== نظام عرض الأوامر بالأسطر والأزرار (-all) ====================
+# ==================== نظام قائمة الأوامر المنسدلة الاحترافية (-all) ====================
+
+class AllCommandsDropdown(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="1. الأوامر العامة والإدارة", description="عرض أوامر بينج، كلير، سيرفر، أفتار، اقتراحات، السجلات", value="all_gen"),
+            discord.SelectOption(label="2. نظام الاقتصاد والألعاب", description="عرض أوامر الرصيد، دايلي، وورك، شوب، وألعاب الحظ", value="all_eco"),
+            discord.SelectOption(label="3. متجر السيرفر والحقيبة", description="عرض أوامر المتجر وشراء الرتب والمخزون", value="all_store"),
+            discord.SelectOption(label="4. الإدارة المالية للمسؤولين", description="عرض أوامر إضافة وتصفير أرصدة الأعضاء", value="all_fin"),
+            discord.SelectOption(label="5. نظام المصارحات Tellonym", description="عرض أوامر المصارحات السرية وإعداد الروم", value="all_tell"),
+            discord.SelectOption(label="6. نظام البرودكاست المتطور", description="عرض أوامر البرودكاست العام والرتب والرومات", value="all_bc"),
+            discord.SelectOption(label="7. الردود والذكاء والحماية", description="عرض الردود التلقائية وحماية السبام والرايد", value="all_auto")
+        ]
+        super().__init__(placeholder="يرجى الاختيار لعرض قسم الأوامر المطلوبة ..", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        val = self.values[0]
+        if val == "all_gen":
+            text = (
+                "**1. الأوامر العامة والإدارة السريعة**\n"
+                "• `-k` : عرض قائمة الأوامر العامة الأساسية.\n"
+                "• `-ping` : قياس سرعة استجابة البوت بالمللي ثانية.\n"
+                "• `-clear [العدد]` : حذف الرسائل دفعة واحدة (للإدارة).\n"
+                "• `-server` : عرض معلومات السيرفر الكاملة.\n"
+                "• `-avatar [@user]` : عرض صورة الأفاتار الخاصة بك أو بأي عضو.\n"
+                "• `-rules` : نشر قوانين السيرفر الرسمية.\n"
+                "• `-suggest [الاقتراح]` : إرسال اقتراح مع أزرار للتصويت (ايجاب وسلب).\n"
+                "• `-announce [النص] [العنوان]` : إرسال إعلان رسمي مرتب للإدارة.\n"
+                "• `-log` : عرض لوحة تحكم وحالة السجلات والحماية."
+            )
+        elif val == "all_eco":
+            text = (
+                "**2. نظام الاقتصاد والألعاب المتكامل**\n"
+                "• `-c` : عرض قائمة أوامر الاقتصاد.\n"
+                "• `-bal` أو `-balance [@user]` : عرض رصيدك أو رصيد عضو آخر.\n"
+                "• `-daily` : استلام المكافأة اليومية (500 عملة كل 24 ساعة).\n"
+                "• `-work` : العمل لكسب دخل عشوائي (100-300 عملة كل ساعة).\n"
+                "• `-beg` : الشاذة للحصول على مبلغ بسيط (كل 15 دقيقة).\n"
+                "• `-pay [@user] [المبلغ]` : تحويل أموال لعضو آخر.\n"
+                "• `-leaderboard` أو `-lb` : قائمة أغنى 10 أشخاص في السيرفر.\n"
+                "• `-slots [المبلغ]` : ماكينة الحظ لمضاعفة الأرباح.\n"
+                "• `-dice [المبلغ]` : رمي النرد والمنافسة ضد البوت.\n"
+                "• `-coinflip [صورة/كتابة] [المبلغ]` : لعبة العملة المعدنية."
+            )
+        elif val == "all_store":
+            text = (
+                "**3. متجر السيرفر والحقيبة**\n"
+                "• `-shop` : تغيير لون، رتب) عرض المنتجات المتاحة للشراء (VIP، إلخ).\n"
+                "• `-buy [الاسم]` : شراء منتج من المتجر برصيدك.\n"
+                "• `-inventory` : عرض محتويات حقيبتك وما تملكه.\n"
+                "• `-use [الاسم]` : استخدام عنصر قمت بشرائه من الحقيبة."
+            )
+        elif val == "all_fin":
+            text = (
+                "**4. أوامر الإدارة المالية (للمسؤولين فقط)**\n"
+                "• `-addcoins [@user] [المبلغ]` : إضافة أموال لرصيد عضو.\n"
+                "• `-removecoins [@user] [المبلغ]` : خصم أموال من رصيد عضو.\n"
+                "• `-setcoins [@user] [المبلغ]` : تعيين رصيد محدد لعضو.\n"
+                "• `-resetcoins [@user]` : تصفير رصيد العضو تماماً."
+            )
+        elif val == "all_tell":
+            text = (
+                "**5. نظام المصارحات (Tellonym)**\n"
+                "• `-tell` : عرض شرح وأوامر نظام المصارحات.\n"
+                "• `-sendtell [@user] [الرسالة]` : إرسال مصارحة سرية لعضو (مع حذف رسالتك تلقائياً للسرية).\n"
+                "• `-setchannel` : تحديد روم استقبال المصارحات تلقائياً.\n"
+                "• مصطلحات النظام: Tellonym (صارحة)، Anonymous (مجهول)، Inbox (صندوق الوارد)."
+            )
+        elif val == "all_bc":
+            text = (
+                "**6. نظام البرودكاست المتطور**\n"
+                "• `-broadcast` : عرض شرح وأوامر نظام البرودكاست الشامل.\n"
+                "• `-bc [الرسالة]` : إرسال برودكاست عام لجميع الأعضاء عبر الخاص مع إحصائيات.\n"
+                "• `-bc-role [@الرتبة] [الرسالة]` : إرسال برودكاست لأصحاب رتبة معينة عبر الخاص.\n"
+                "• `-bc-room [#روم] [الرسالة]` : إرسال برودكاست رسمي داخل روم معين.\n"
+                "• والمتغيرات المتاحة: `{user}` لمنشن العضو، `{username}` لاسم العضو، `{server}` لاسم السيرفر، `{members}` لعدد الأعضاء."
+            )
+        elif val == "all_auto":
+            text = (
+                "**7. الردود الذكية والحماية (تعمل تلقائياً بدون بريفكس)**\n"
+                "• منو قطوتي -> يرجع البوت بـ (مياو)\n"
+                "• منو بطتي -> يرجع البوت بـ (بط بط)\n"
+                "• شاطر أو شاطرة -> يرجع البوت بـ (كلزق)\n"
+                "• حماية السبام التلقائي : حذف الرسائل المتكررة السريعة وإرسال تحذير للسجلات.\n"
+                "• مكافحة الرايد : رصد دخول أعداد هائلة من الأعضاء في ثوان معدودة.\n"
+                "• سجلات الرومات والرتب والرسائل : تتبع التعديل والحذف والإنشاء تلقائياً.\n\n"
+                "طلب بواسطة: x | جميع الحقوق محفوظة"
+            )
+        else:
+            text = "يرجى اختيار قسم صحيح."
+
+        embed = discord.Embed(
+            description=text,
+            color=discord.Color.from_rgb(35, 39, 42)
+        )
+        await interaction.response.edit_message(embed=embed, view=AllCommandsView())
 
 class AllCommandsView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=180)
-
-    @discord.ui.button(label="1. الأوامر العامة والإدارة", style=discord.ButtonStyle.primary, row=0)
-    async def btn_general(self, interaction: discord.Interaction, button: discord.ui.Button):
-        text = (
-            "**1. الأوامر العامة والإدارة السريعة**\n"
-            "• `-k` : عرض قائمة الأوامر العامة الأساسية.\n"
-            "• `-ping` : قياس سرعة استجابة البوت بالمللي ثانية.\n"
-            "• `-clear [العدد]` : حذف الرسائل دفعة واحدة (للإدارة).\n"
-            "• `-server` : عرض معلومات السيرفر الكاملة.\n"
-            "• `-avatar [@user]` : عرض صورة الأفاتار الخاصة بك أو بأي عضو.\n"
-            "• `-rules` : نشر قوانين السيرفر الرسمية.\n"
-            "• `-suggest [الاقتراح]` : إرسال اقتراح مع أزرار للتصويت (ايجاب وسلب).\n"
-            "• `-announce [النص] [العنوان]` : إرسال إعلان رسمي مرتب للإدارة.\n"
-            "• `-log` : عرض لوحة تحكم وحالة السجلات والحماية."
-        )
-        await interaction.response.edit_message(content=text, view=AllCommandsView())
-
-    @discord.ui.button(label="2. الاقتصاد والألعاب", style=discord.ButtonStyle.success, row=0)
-    async def btn_economy(self, interaction: discord.Interaction, button: discord.ui.Button):
-        text = (
-            "**2. نظام الاقتصاد والألعاب المتكامل**\n"
-            "• `-c` : عرض قائمة أوامر الاقتصاد.\n"
-            "• `-bal` أو `-balance [@user]` : عرض رصيدك أو رصيد عضو آخر.\n"
-            "• `-daily` : استلام المكافأة اليومية (500 عملة كل 24 ساعة).\n"
-            "• `-work` : العمل لكسب دخل عشوائي (100-300 عملة كل ساعة).\n"
-            "• `-beg` : الشاذة للحصول على مبلغ بسيط (كل 15 دقيقة).\n"
-            "• `-pay [@user] [المبلغ]` : تحويل أموال لعضو آخر.\n"
-            "• `-leaderboard` أو `-lb` : قائمة أغنى 10 أشخاص في السيرفر.\n"
-            "• `-slots [المبلغ]` : ماكينة الحظ لمضاعفة الأرباح.\n"
-            "• `-dice [المبلغ]` : رمي النرد والمنافسة ضد البوت.\n"
-            "• `-coinflip [صورة/كتابة] [المبلغ]` : لعبة العملة المعدنية."
-        )
-        await interaction.response.edit_message(content=text, view=AllCommandsView())
-
-    @discord.ui.button(label="3. المتجر والحقيبة", style=discord.ButtonStyle.success, row=1)
-    async def btn_store(self, interaction: discord.Interaction, button: discord.ui.Button):
-        text = (
-            "**3. متجر السيرفر والحقيبة**\n"
-            "• `-shop` : تغيير لون، رتب) عرض المنتجات المتاحة للشراء (VIP، إلخ).\n"
-            "• `-buy [الاسم]` : شراء منتج من المتجر برصيدك.\n"
-            "• `-inventory` : عرض محتويات حقيبتك وما تملكه.\n"
-            "• `-use [الاسم]` : استخدام عنصر قمت بشرائه من الحقيبة."
-        )
-        await interaction.response.edit_message(content=text, view=AllCommandsView())
-
-    @discord.ui.button(label="4. الإدارة المالية", style=discord.ButtonStyle.danger, row=1)
-    async def btn_fin(self, interaction: discord.Interaction, button: discord.ui.Button):
-        text = (
-            "**4. أوامر الإدارة المالية (للمسؤولين فقط)**\n"
-            "• `-addcoins [@user] [المبلغ]` : إضافة أموال لرصيد عضو.\n"
-            "• `-removecoins [@user] [المبلغ]` : خصم أموال من رصيد عضو.\n"
-            "• `-setcoins [@user] [المبلغ]` : تعيين رصيد محدد لعضو.\n"
-            "• `-resetcoins [@user]` : تصفير رصيد العضو تماماً."
-        )
-        await interaction.response.edit_message(content=text, view=AllCommandsView())
-
-    @discord.ui.button(label="5. المصارحات Tellonym", style=discord.ButtonStyle.secondary, row=2)
-    async def btn_tell(self, interaction: discord.Interaction, button: discord.ui.Button):
-        text = (
-            "**5. نظام المصارحات (Tellonym)**\n"
-            "• `-tell` : عرض شرح وأوامر نظام المصارحات.\n"
-            "• `-sendtell [@user] [الرسالة]` : إرسال مصارحة سرية لعضو (مع حذف رسالتك تلقائياً للسرية).\n"
-            "• `-setchannel` : تحديد روم استقبال المصارحات تلقائياً.\n"
-            "• مصطلحات النظام: Tellonym (صارحة)، Anonymous (مجهول)، Inbox (صندوق الوارد)."
-        )
-        await interaction.response.edit_message(content=text, view=AllCommandsView())
-
-    @discord.ui.button(label="6. البرودكاست المتطور", style=discord.ButtonStyle.secondary, row=2)
-    async def btn_bc(self, interaction: discord.Interaction, button: discord.ui.Button):
-        text = (
-            "**6. نظام البرودكاست المتطور**\n"
-            "• `-broadcast` : عرض شرح وأوامر نظام البرودكاست الشامل.\n"
-            "• `-bc [الرسالة]` : إرسال برودكاست عام لجميع الأعضاء عبر الخاص مع إحصائيات.\n"
-            "• `-bc-role [@الرتبة] [الرسالة]` : إرسال برودكاست لأصحاب رتبة معينة عبر الخاص.\n"
-            "• `-bc-room [#روم] [الرسالة]` : إرسال برودكاست رسمي داخل روم معين.\n"
-            "• والمتغيرات المتاحة: `{user}` لمنشن العضو، `{username}` لاسم العضو، `{server}` لاسم السيرفر، `{members}` لعدد الأعضاء."
-        )
-        await interaction.response.edit_message(content=text, view=AllCommandsView())
-
-    @discord.ui.button(label="7. الردود والذكاء والحماية", style=discord.ButtonStyle.primary, row=3)
-    async def btn_auto(self, interaction: discord.Interaction, button: discord.ui.Button):
-        text = (
-            "**7. الردود الذكية والحماية (تعمل تلقائياً بدون بريفكس)**\n"
-            "• منو قطوتي -> يرجع البوت بـ (مياو)\n"
-            "• منو بطتي -> يرجع البوت بـ (بط بط)\n"
-            "• شاطر أو شاطرة -> يرجع البوت بـ (كلزق)\n"
-            "• حماية السبام التلقائي : حذف الرسائل المتكررة السريعة وإرسال تحذير للسجلات.\n"
-            "• مكافحة الرايد : رصد دخول أعداد هائلة من الأعضاء في ثوان معدودة.\n"
-            "• سجلات الرومات والرتب والرسائل : تتبع التعديل والحذف والإنشاء تلقائياً.\n\n"
-            "طلب بواسطة: x | جميع الحقوق محفوظة"
-        )
-        await interaction.response.edit_message(content=text, view=AllCommandsView())
-
-    @discord.ui.button(label="🏠 القائمة الرئيسية", style=discord.ButtonStyle.secondary, row=3)
-    async def btn_home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        text = "دليل جميع أوامر وأنظمة البوت الشاملة حرفياً\nإليك كافة الأوامر، الأنظمة، الألعاب، والشروحات الموجودة داخل البوت بالتفصيل. اختر القسم المناسب من الأزرار بالأسفل:"
-        await interaction.response.edit_message(content=text, view=AllCommandsView())
+        super().__init__(timeout=900)  # وقت طويل يصل لـ 15 دقيقة لعدم انتهاء التفاعل بسرعة
+        self.add_item(AllCommandsDropdown())
 
 @bot.command(name="all")
 async def all_commands_cmd(ctx):
@@ -156,10 +155,14 @@ async def all_commands_cmd(ctx):
     intro_text = (
         "**دليل جميع أوامر وأنظمة البوت الشاملة حرفياً**\n"
         "إليك كافة الأوامر، الأنظمة، الألعاب، والشروحات الموجودة داخل البوت بالتفصيل.\n"
-        "اختر أحد الأقسام أدناه لعرض أوامره وشرحه الخاص:"
+        "اختر من القائمة أدناه لعرض تفاصيل وشرح أي قسم تريد:"
+    )
+    embed = discord.Embed(
+        description=intro_text,
+        color=discord.Color.from_rgb(35, 39, 42)
     )
     view = AllCommandsView()
-    await ctx.send(content=intro_text, view=view)
+    await ctx.send(embed=embed, view=view)
 
 # ==================== القائمة الهرمية للتحكم ($settings) ====================
 
@@ -198,7 +201,7 @@ class MainSettingsDropdown(discord.ui.Select):
 
 class SubDepartmentsView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=None)
+        super().__init__(timeout=900)
 
     @discord.ui.select(placeholder="اختر القسم الفرعي للتفاصيل ..", options=[
         discord.SelectOption(label="الدعم الفني (Support)", value="sub_support"),
@@ -220,7 +223,7 @@ class SubDepartmentsView(discord.ui.View):
 
 class MainSettingsView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=None)
+        super().__init__(timeout=900)
         self.add_item(MainSettingsDropdown())
 
     @discord.ui.button(label="إغلاق اللوحة", style=discord.ButtonStyle.red, custom_id="close_main_settings_naxo_ultimate")
