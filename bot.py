@@ -2,8 +2,6 @@ import discord
 from discord.ext import commands
 import os
 import asyncio
-import random
-import time
 from collections import defaultdict
 from keep_alive import keep_alive
 
@@ -11,540 +9,454 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 intents.guilds = True
-intents.moderation = True
 
 bot = commands.Bot(command_prefix='-', intents=intents)
 
-# تخزين بيانات حماية السبام والرايد
-message_cache = defaultdict(list)
-join_cache = defaultdict(list)
+# قواعد البيانات المؤقتة
+active_tickets = {} 
+closed_tickets = set()
+ticket_stats = defaultdict(lambda: {"opened": 0, "closed": 0})
+warns = defaultdict(int)
 
-# قواعد البيانات الوهمية للاقتصاد والمتجر
-economy_db = {}
-cooldowns = {"daily": {}, "work": {}, "beg": {}, "broadcast": {}}
-inventory_db = defaultdict(list)
-
-shop_items = {
-    "color": {"name": "تغيير لون الاسم", "price": 5000, "desc": "يتيح لك تغيير لون اسمك"},
-    "vip": {"name": "رتبة VIP يوم", "price": 15000, "desc": "رتبة VIP لمدة يوم كامل"},
-    "elite": {"name": "رتبة Elite أسبوع", "price": 50000, "desc": "رتبة Elite لمدة أسبوع"},
-    "ticket": {"name": "دخول سحب خاص", "price": 10000, "desc": "تذكرة دخول للسحب القادم"}
+# إعدادات البوت الافتراضية
+ticket_settings = {
+    "panel_channel": None,
+    "log_channel": None,
+    "category_id": None,
+    "global_support_role": None,
+    "panel_image": "https://cdn.discordapp.com/attachments/1534396073072656558/1535009128978714695/panel.png",
+    "type_roles": {
+        "support": None,
+        "staff_apply_boys": None,
+        "staff_apply_girls": None,
+        "scrim": None,
+        "store": None,
+        "partnerships": None
+    },
+    "type_messages": {
+        "support": "يرجى شرح مشكلتك أو طلبك التقني بالتفصيل وسيتم الرد عليك قريباً.",
+        "staff_apply_boys": "أهلاً بك في تقديم فرع العيال، يرجى تعبئة النموذج وإرسال المعلومات المطلوبة.",
+        "staff_apply_girls": "أهلاً بكِ في تقديم فرع البنات، يرجى إرسال تفاصيل التقديم هنا.",
+        "scrim": "يرجى كتابة اسم كلانك وعدد اللاعبين لترتيب السكرم.",
+        "store": "مرحباً بك، اذكر الرتبة أو الطلب الذي تريده مع طريقة الدفع.",
+        "partnerships": "أهلاً بك في قسم التعاونات، ارسل تفاصيل سيرفرك أو عرضك."
+    }
 }
 
 @bot.event
 async def on_ready():
-    print(f'البوت الشامل شغال وجاهز باسم: {bot.user}')
+    print(f'بوت Naxo الشخصي الشامل يعمل بنجاح: {bot.user}')
 
-def get_balance(user_id):
-    return economy_db.get(user_id, 0)
+# ==================== نظام عرض الأوامر بالأسطر والأزرار (-all) ====================
 
-def update_balance(user_id, amount):
-    economy_db[user_id] = get_balance(user_id) + amount
-    if economy_db[user_id] < 0:
-        economy_db[user_id] = 0
+class AllCommandsView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
 
-def get_log_channel(guild):
-    for channel in guild.text_channels:
-        if "log" in channel.name.lower() or "سجلات" in channel.name or "سجل" in channel.name:
-            return channel
-    return None
+    @discord.ui.button(label="1. الأوامر العامة والإدارة", style=discord.ButtonStyle.primary, row=0)
+    async def btn_general(self, interaction: discord.Interaction, button: discord.ui.Button):
+        text = (
+            "**1. الأوامر العامة والإدارة السريعة**\n"
+            "• `-k` : عرض قائمة الأوامر العامة الأساسية.\n"
+            "• `-ping` : قياس سرعة استجابة البوت بالمللي ثانية.\n"
+            "• `-clear [العدد]` : حذف الرسائل دفعة واحدة (للإدارة).\n"
+            "• `-server` : عرض معلومات السيرفر الكاملة.\n"
+            "• `-avatar [@user]` : عرض صورة الأفاتار الخاصة بك أو بأي عضو.\n"
+            "• `-rules` : نشر قوانين السيرفر الرسمية.\n"
+            "• `-suggest [الاقتراح]` : إرسال اقتراح مع أزرار للتصويت (ايجاب وسلب).\n"
+            "• `-announce [النص] [العنوان]` : إرسال إعلان رسمي مرتب للإدارة.\n"
+            "• `-log` : عرض لوحة تحكم وحالة السجلات والحماية."
+        )
+        await interaction.response.edit_message(content=text, view=AllCommandsView())
 
-def get_tell_channel(guild):
-    for channel in guild.text_channels:
-        if "tell" in channel.name.lower() or "صارحني" in channel.name or "مصارحات" in channel.name:
-            return channel
-    return None
+    @discord.ui.button(label="2. الاقتصاد والألعاب", style=discord.ButtonStyle.success, row=0)
+    async def btn_economy(self, interaction: discord.Interaction, button: discord.ui.Button):
+        text = (
+            "**2. نظام الاقتصاد والألعاب المتكامل**\n"
+            "• `-c` : عرض قائمة أوامر الاقتصاد.\n"
+            "• `-bal` أو `-balance [@user]` : عرض رصيدك أو رصيد عضو آخر.\n"
+            "• `-daily` : استلام المكافأة اليومية (500 عملة كل 24 ساعة).\n"
+            "• `-work` : العمل لكسب دخل عشوائي (100-300 عملة كل ساعة).\n"
+            "• `-beg` : الشاذة للحصول على مبلغ بسيط (كل 15 دقيقة).\n"
+            "• `-pay [@user] [المبلغ]` : تحويل أموال لعضو آخر.\n"
+            "• `-leaderboard` أو `-lb` : قائمة أغنى 10 أشخاص في السيرفر.\n"
+            "• `-slots [المبلغ]` : ماكينة الحظ لمضاعفة الأرباح.\n"
+            "• `-dice [المبلغ]` : رمي النرد والمنافسة ضد البوت.\n"
+            "• `-coinflip [صورة/كتابة] [المبلغ]` : لعبة العملة المعدنية."
+        )
+        await interaction.response.edit_message(content=text, view=AllCommandsView())
 
-# ==================== الأمر الشامل (-all) ====================
-@bot.command(name="all")
-async def all_commands_guide(ctx):
-    embed = discord.Embed(
-        title="دليل جميع أوامر وأنظمة البوت الشاملة حرفياً",
-        description="إليك كافة الأوامر، الأنظمة، الألعاب، والشروحات الموجودة داخل البوت بالتفصيل:",
-        color=discord.Color.dark_embed()
-    )
-    
-    # 1. الأوامر العامة وأوامر السيرفر
-    embed.add_field(
-        name="1. الأوامر العامة والإدارة السريعة",
-        value=(
-            "• -k : عرض قائمة الأوامر العامة الأساسية.\n"
-            "• -ping : قياس سرعة استجابة البوت بالمللي ثانية.\n"
-            "• -clear [العدد] : حذف الرسائل دفعة واحدة (للإدارة).\n"
-            "• -server : عرض معلومات السيرفر الكاملة.\n"
-            "• -avatar [@user] : عرض صورة الأفاتار الخاصة بك أو بأي عضو.\n"
-            "• -rules : نشر قوانين السيرفر الرسمية.\n"
-            "• -suggest [الاقتراح] : إرسال اقتراح مع أزرار للتصويت (ايجاب وسلب).\n"
-            "• -announce [العنوان] [النص] : إرسال إعلان رسمي مرتب للإدارة.\n"
-            "• -log : عرض لوحة تحكم وحالة السجلات والحماية."
-        ),
-        inline=False
-    )
-    
-    # 2. نظام الاقتصاد والألعاب
-    embed.add_field(
-        name="2. نظام الاقتصاد والألعاب المتكامل",
-        value=(
-            "• -c : عرض قائمة أوامر الاقتصاد.\n"
-            "• -balance أو -bal [@user] : عرض رصيدك أو رصيد عضو آخر.\n"
-            "• -daily : استلام المكافأة اليومية (500 عملة كل 24 ساعة).\n"
-            "• -work : العمل لكسب دخل عشوائي (100-300 عملة كل ساعة).\n"
-            "• -beg : الشحاذة للحصول على مبلغ بسيط (كل 15 دقيقة).\n"
-            "• -pay [@user] [المبلغ] : تحويل أموال لعضو آخر.\n"
-            "• -leaderboard أو -lb : قائمة أغنى 10 أشخاص في السيرفر.\n"
-            "• -slots [المبلغ] : ماكينة الحظ لمضاعفة الأرباح.\n"
-            "• -dice [المبلغ] : رمي النرد والمنافسة ضد البوت.\n"
-            "• -coinflip [المبلغ] [صورة/كتابة] : لعبة العملة المعدنية."
-        ),
-        inline=False
-    )
-    
-    # 3. المتجر والحقيبة
-    embed.add_field(
-        name="3. متجر السيرفر والحقيبة",
-        value=(
-            "• -shop : عرض المنتجات المتاحة للشراء (تغيير لون، رتب VIP، إلخ).\n"
-            "• -buy [الاسم] : شراء منتج من المتجر برصيدك.\n"
-            "• -inventory : عرض محتويات حقيبتك وما تملكه.\n"
-            "• -use [الاسم] : استخدام عنصر قمت بشرائه من الحقيبة."
-        ),
-        inline=False
-    )
-    
-    # 4. أوامر الإدارة المالية
-    embed.add_field(
-        name="4. أوامر الإدارة المالية (للمسؤولين فقط)",
-        value=(
-            "• -addcoins [@user] [المبلغ] : إضافة أموال لرصيد عضو.\n"
-            "• -removecoins [@user] [المبلغ] : خصم أموال من رصيد عضو.\n"
-            "• -setcoins [@user] [المبلغ] : تعيين رصيد محدد لعضو.\n"
-            "• -resetcoins [@user] : تصفير رصيد العضو تماماً."
-        ),
-        inline=False
-    )
-    
-    # 5. نظام التليون (Tellonym)
-    embed.add_field(
-        name="5. نظام المصارحات (Tellonym)",
-        value=(
-            "• -tell : عرض شرح وأوامر نظام المصارحات.\n"
-            "• -sendtell [@العضو] [الرسالة] : إرسال مصارحة سرية لعضو (مع حذف رسالتك تلقائياً للسرية).\n"
-            "• -setchannel : تحديد روم استقبال المصارحات تلقائياً.\n"
-            "• مصطلحات النظام: Tellonym (مصارحة)، Anonymous (مجهول)، Inbox (صندوق الوارد)."
-        ),
-        inline=False
-    )
-    
-    # 6. نظام البرودكاست (Broadcast)
-    embed.add_field(
-        name="6. نظام البرودكاست المتطور",
-        value=(
-            "• -برودكاست : عرض شرح وأوامر نظام البرودكاست الشامل.\n"
-            "• -bc [الرسالة] : إرسال برودكاست عام لجميع الأعضاء عبر الخاص مع إحصائيات.\n"
-            "• -bc-role [@الرتبة] [الرسالة] : إرسال برودكاست لأصحاب رتبة معينة عبر الخاص.\n"
-            "• -bc-room [#الروم] [الرسالة] : إرسال برودكاست رسمي داخل روم معين.\n"
-            "• المتغيرات المتاحة: {user} لمنشن العضو، {username} لاسم العضو، {server} لاسم السيرفر، {members} لعدد الأعضاء."
-        ),
-        inline=False
-    )
-    
-    # 7. الردود الذكية والحماية التلقائية
-    embed.add_field(
-        name="7. الردود الذكية والحماية (تعمل تلقائياً بدون بريفكس)",
-        value=(
+    @discord.ui.button(label="3. المتجر والحقيبة", style=discord.ButtonStyle.success, row=1)
+    async def btn_store(self, interaction: discord.Interaction, button: discord.ui.Button):
+        text = (
+            "**3. متجر السيرفر والحقيبة**\n"
+            "• `-shop` : تغيير لون، رتب) عرض المنتجات المتاحة للشراء (VIP، إلخ).\n"
+            "• `-buy [الاسم]` : شراء منتج من المتجر برصيدك.\n"
+            "• `-inventory` : عرض محتويات حقيبتك وما تملكه.\n"
+            "• `-use [الاسم]` : استخدام عنصر قمت بشرائه من الحقيبة."
+        )
+        await interaction.response.edit_message(content=text, view=AllCommandsView())
+
+    @discord.ui.button(label="4. الإدارة المالية", style=discord.ButtonStyle.danger, row=1)
+    async def btn_fin(self, interaction: discord.Interaction, button: discord.ui.Button):
+        text = (
+            "**4. أوامر الإدارة المالية (للمسؤولين فقط)**\n"
+            "• `-addcoins [@user] [المبلغ]` : إضافة أموال لرصيد عضو.\n"
+            "• `-removecoins [@user] [المبلغ]` : خصم أموال من رصيد عضو.\n"
+            "• `-setcoins [@user] [المبلغ]` : تعيين رصيد محدد لعضو.\n"
+            "• `-resetcoins [@user]` : تصفير رصيد العضو تماماً."
+        )
+        await interaction.response.edit_message(content=text, view=AllCommandsView())
+
+    @discord.ui.button(label="5. المصارحات Tellonym", style=discord.ButtonStyle.secondary, row=2)
+    async def btn_tell(self, interaction: discord.Interaction, button: discord.ui.Button):
+        text = (
+            "**5. نظام المصارحات (Tellonym)**\n"
+            "• `-tell` : عرض شرح وأوامر نظام المصارحات.\n"
+            "• `-sendtell [@user] [الرسالة]` : إرسال مصارحة سرية لعضو (مع حذف رسالتك تلقائياً للسرية).\n"
+            "• `-setchannel` : تحديد روم استقبال المصارحات تلقائياً.\n"
+            "• مصطلحات النظام: Tellonym (صارحة)، Anonymous (مجهول)، Inbox (صندوق الوارد)."
+        )
+        await interaction.response.edit_message(content=text, view=AllCommandsView())
+
+    @discord.ui.button(label="6. البرودكاست المتطور", style=discord.ButtonStyle.secondary, row=2)
+    async def btn_bc(self, interaction: discord.Interaction, button: discord.ui.Button):
+        text = (
+            "**6. نظام البرودكاست المتطور**\n"
+            "• `-broadcast` : عرض شرح وأوامر نظام البرودكاست الشامل.\n"
+            "• `-bc [الرسالة]` : إرسال برودكاست عام لجميع الأعضاء عبر الخاص مع إحصائيات.\n"
+            "• `-bc-role [@الرتبة] [الرسالة]` : إرسال برودكاست لأصحاب رتبة معينة عبر الخاص.\n"
+            "• `-bc-room [#روم] [الرسالة]` : إرسال برودكاست رسمي داخل روم معين.\n"
+            "• والمتغيرات المتاحة: `{user}` لمنشن العضو، `{username}` لاسم العضو، `{server}` لاسم السيرفر، `{members}` لعدد الأعضاء."
+        )
+        await interaction.response.edit_message(content=text, view=AllCommandsView())
+
+    @discord.ui.button(label="7. الردود والذكاء والحماية", style=discord.ButtonStyle.primary, row=3)
+    async def btn_auto(self, interaction: discord.Interaction, button: discord.ui.Button):
+        text = (
+            "**7. الردود الذكية والحماية (تعمل تلقائياً بدون بريفكس)**\n"
             "• منو قطوتي -> يرجع البوت بـ (مياو)\n"
             "• منو بطتي -> يرجع البوت بـ (بط بط)\n"
             "• شاطر أو شاطرة -> يرجع البوت بـ (كلزق)\n"
             "• حماية السبام التلقائي : حذف الرسائل المتكررة السريعة وإرسال تحذير للسجلات.\n"
-            "• مكافحة الرايد : رصد دخول أعداد هائلة من الأعضاء في ثوانٍ معدودة.\n"
-            "• سجلات الرومات والرتب والرسائل : تتبع التعديل والحذف والإنشاء تلقائياً."
-        ),
-        inline=False
+            "• مكافحة الرايد : رصد دخول أعداد هائلة من الأعضاء في ثوان معدودة.\n"
+            "• سجلات الرومات والرتب والرسائل : تتبع التعديل والحذف والإنشاء تلقائياً.\n\n"
+            "طلب بواسطة: x | جميع الحقوق محفوظة"
+        )
+        await interaction.response.edit_message(content=text, view=AllCommandsView())
+
+    @discord.ui.button(label="🏠 القائمة الرئيسية", style=discord.ButtonStyle.secondary, row=3)
+    async def btn_home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        text = "دليل جميع أوامر وأنظمة البوت الشاملة حرفياً\nإليك كافة الأوامر، الأنظمة، الألعاب، والشروحات الموجودة داخل البوت بالتفصيل. اختر القسم المناسب من الأزرار بالأسفل:"
+        await interaction.response.edit_message(content=text, view=AllCommandsView())
+
+@bot.command(name="all")
+async def all_commands_cmd(ctx):
+    await ctx.message.delete()
+    intro_text = (
+        "**دليل جميع أوامر وأنظمة البوت الشاملة حرفياً**\n"
+        "إليك كافة الأوامر، الأنظمة، الألعاب، والشروحات الموجودة داخل البوت بالتفصيل.\n"
+        "اختر أحد الأقسام أدناه لعرض أوامره وشرحه الخاص:"
     )
-    
-    embed.set_footer(text=f"طلب بواسطة: {ctx.author.display_name} | جميع الحقوق محفوظة")
-    await ctx.send(embed=embed)
+    view = AllCommandsView()
+    await ctx.send(content=intro_text, view=view)
 
-# ==================== قائمة الأوامر العامة (-k) ====================
-@bot.command(name="k")
-async def help_menu(ctx):
-    embed = discord.Embed(title="قائمة أوامر البوت الشاملة", description="إليك كافة الأوامر المتاحة وطريقة استخدامها:", color=discord.Color.blue())
-    
-    embed.add_field(name="-ping", value="يقيس سرعة استجابة البوت.", inline=False)
-    embed.add_field(name="-clear [العدد]", value="حذف الرسائل دفعة واحدة.", inline=False)
-    embed.add_field(name="-server", value="معلومات السيرفر.", inline=False)
-    embed.add_field(name="-avatar [@user]", value="عرض الأفاتار.", inline=False)
-    embed.add_field(name="-rules", value="نشر القوانين.", inline=False)
-    embed.add_field(name="-suggest [الاقتراح]", value="إرسال اقتراح مع أزرار للتصويت.", inline=False)
-    embed.add_field(name="-announce [العنوان] [النص]", value="إرسال إعلان رسمي مرتب.", inline=False)
-    embed.add_field(name="-log", value="لوحة تحكم السجلات.", inline=False)
-    embed.add_field(name="-c", value="عرض قائمة أوامر الاقتصاد والألعاب والمتجر بالتفصيل.", inline=False)
-    embed.add_field(name="-tell", value="عرض نظام المصارحات (Tellonym) والشرح.", inline=False)
-    embed.add_field(name="-برودكاست", value="عرض شرح وأوامر نظام البرودكاست المتطور.", inline=False)
-    embed.add_field(name="-all", value="عرض الدليل الشامل لجميع أوامر وأنظمة البوت حرفياً.", inline=False)
-    
-    await ctx.send(embed=embed)
+# ==================== القائمة الهرمية للتحكم ($settings) ====================
 
-# ==================== قائمة أوامر الاقتصاد (-c) ====================
-@bot.command(name="c")
-async def economy_help(ctx):
-    embed = discord.Embed(title="قائمة أوامر الاقتصاد والألعاب والمتجر", description="إليك كافة الأوامر المالية وطريقة استخدامها:", color=discord.Color.gold())
-    
-    embed.add_field(name="الأوامر الأساسية", value="• -balance أو -bal [@user] : رصيدك أو رصيد غيرك\n• -daily : مكافأة يومية\n• -work : العمل لكسب المال\n• -beg : الشحاذة\n• -pay [@user] [المبلغ] : تحويل أموال\n• -leaderboard أو -lb : لوحة الشرف", inline=False)
-    embed.add_field(name="ألعاب الحظ والمراهنات", value="• -slots [المبلغ] : ماكينة الحظ\n• -dice [المبلغ] : النرد\n• -coinflip [المبلغ] [صورة/كتابة] : العملة", inline=False)
-    embed.add_field(name="المتجر والحقيبة", value="• -shop : المتجر\n• -buy [الاسم] : الشراء\n• -inventory : الحقيبة\n• -use [الاسم] : الاستخدام", inline=False)
-    
-    await ctx.send(embed=embed)
+class MainSettingsDropdown(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="1. إدارة الأقسام والتكتات", description="التحكم الكامل بأقسام الدعم والتقديم والطلبات", value="tickets_mgmt"),
+            discord.SelectOption(label="2. إدارة الرتب والمشرفين", description="تحديد رتب الدعم لكل قسم على حدة", value="roles_mgmt"),
+            discord.SelectOption(label="3. إعدادات الرومات والسجلات", description="تحديد روم السجلات والتصنيفات", value="channels_mgmt"),
+            discord.SelectOption(label="4. دليل الأوامر والاختصارات", description="عرض شرح سريع لكافة أوامر البوت وطرق استخدامها", value="help_guide"),
+            discord.SelectOption(label="5. إحصائيات ونشاط البوت", description="عرض تقارير التكتات المفتوحة والمغلقة", value="stats_view"),
+            discord.SelectOption(label="6. نشر لوحة التكتات الأساسية", description="إرسال البنرات والقائمة في الروم الحالي", value="send_panel_main")
+        ]
+        super().__init__(placeholder="اختر القسم أو النظام للتحكم به ..", min_values=1, max_values=1, options=options)
 
-# ==================== نظام التليون (-tell) ====================
-@bot.command(name="tell")
-async def tell_help(ctx):
-    embed = discord.Embed(title="نظام المصارحات", description="أوامر وشرح نظام المصارحات السرية:", color=discord.Color.purple())
-    embed.add_field(name="الأوامر", value="• -tell : عرض الشرح\n• -sendtell [@العضو] [الرسالة] : إرسال مصارحة سرية\n• -setchannel : تحديد روم المصارحات", inline=False)
-    await ctx.send(embed=embed)
+    async def callback(self, interaction: discord.Interaction):
+        val = self.values[0]
+        if val == "tickets_mgmt":
+            await interaction.response.edit_message(content="**قسم إدارة التكتات والأقسام الفرعية:**\nاختر القسم الذي تريد تعديله:", view=SubDepartmentsView())
+        elif val == "roles_mgmt":
+            role = interaction.guild.get_role(ticket_settings["global_support_role"]) if ticket_settings["global_support_role"] else "غير محدد"
+            await interaction.response.edit_message(content=f"**قسم إدارة الرتب:**\nرتبة الدعم العامة الحالية: {role.mention if hasattr(role, 'mention') else role}\n\n**الأوامر الخاصة بالرتب:**\n• `-setsupportrole @الرتبة`", view=MainSettingsView())
+        elif val == "channels_mgmt":
+            log = interaction.guild.get_channel(ticket_settings["log_channel"]) if ticket_settings["log_channel"] else "غير محدد"
+            cat = interaction.guild.get_channel(ticket_settings["category_id"]) if ticket_settings["category_id"] else "غير محدد"
+            await interaction.response.edit_message(content=f"**قسم الرومات:**\nروم السجلات: {log.mention if hasattr(log, 'mention') else log}\nالتصنيف الأساسي: {cat.name if hasattr(cat, 'name') else cat}\n\n**الأوامر الخاصة:**\n• `-setlog #روم`\n• `-setcategory #تصنيف`", view=MainSettingsView())
+        elif val == "help_guide":
+            await interaction.response.edit_message(content="**دليل الأوامر السريعة:**\n1. `-setup-ticket` : نشر اللوحة.\n2. `-close` : إغلاق تكت.\n3. `-warn / -ban / -kick` : الإدارة.\n4. `-clear [عدد]` : مسح الرسائل.", view=MainSettingsView())
+        elif val == "stats_view":
+            total_active = len(active_tickets)
+            await interaction.response.edit_message(content=f"**إحصائيات البوت:**\nالتكتات النشطة حالياً: {total_active}", view=MainSettingsView())
+        elif val == "send_panel_main":
+            view = TicketSelectView()
+            await interaction.channel.send(content=ticket_settings["panel_image"], view=view)
+            await interaction.response.edit_message(content="تم إرسال لوحة التكتات بنجاح في الشات.", view=MainSettingsView())
 
-@bot.command(name="sendtell")
-async def send_tell(ctx, member: discord.Member, *, message_text: str):
+class SubDepartmentsView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.select(placeholder="اختر القسم الفرعي للتفاصيل ..", options=[
+        discord.SelectOption(label="الدعم الفني (Support)", value="sub_support"),
+        discord.SelectOption(label="تقديم العيال (Boys Apply)", value="sub_boys"),
+        discord.SelectOption(label="تقديم البنات (Girls Apply)", value="sub_girls"),
+        discord.SelectOption(label="السكرم والبطولات (Scrim)", value="sub_scrim"),
+        discord.SelectOption(label="طلب الرتب (Store)", value="sub_store"),
+        discord.SelectOption(label="التعاونات والشراكات (Partnerships)", value="sub_partners")
+    ])
+    async def sub_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
+        dept = select.values[0]
+        key = dept.replace("sub_", "")
+        msg = ticket_settings["type_messages"].get(key, "لا توجد رسالة.")
+        await interaction.response.edit_message(content=f"**إعدادات القسم ({key}):**\nالرسالة الحالية:\n> {msg}", view=MainSettingsView())
+
+    @discord.ui.button(label="العودة للقائمة الرئيسية", style=discord.ButtonStyle.grey, custom_id="back_home_naxo_ultimate")
+    async def back_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="لوحة التحكم الرئيسية:", view=MainSettingsView())
+
+class MainSettingsView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(MainSettingsDropdown())
+
+    @discord.ui.button(label="إغلاق اللوحة", style=discord.ButtonStyle.red, custom_id="close_main_settings_naxo_ultimate")
+    async def close_settings(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.message.delete()
+
+@bot.command(name="settings")
+@commands.has_permissions(administrator=True)
+async def settings_dashboard(ctx):
     await ctx.message.delete()
-    if member.id == ctx.author.id:
-        await ctx.send("لا يمكنك إرسال مصارحة لنفسك!", delete_after=5)
-        return
-    embed = discord.Embed(title="وصلت لك مصارحة جديدة", description=f"```{message_text}```", color=discord.Color.magenta())
-    try:
-        await member.send(embed=embed)
-        await ctx.send(f"تم إرسال مصارحتك إلى {member.mention} بنجاح!", delete_after=5)
-    except:
-        tell_chan = get_tell_channel(ctx.guild)
-        if tell_chan:
-            await tell_chan.send(embed=embed)
-            await ctx.send(f"تم نشر المصارحة في روم المصارحات لأن خاص العضو مغلق.", delete_after=5)
-        else:
-            await ctx.send("تعذر إرسال المصارحة.", delete_after=5)
+    log_ch = ctx.guild.get_channel(ticket_settings["log_channel"]) if ticket_settings["log_channel"] else None
+    sup_role = ctx.guild.get_role(ticket_settings["global_support_role"]) if ticket_settings["global_support_role"] else None
+    cat_ch = ctx.guild.get_channel(ticket_settings["category_id"]) if ticket_settings["category_id"] else None
 
-# ==================== نظام البرودكاست (-برودكاست) ====================
-@bot.command(name="برودكاست")
-@commands.has_permissions(administrator=True)
-async def broadcast_help(ctx):
-    embed = discord.Embed(title="نظام البرودكاست", description="أوامر وشرح البرودكاست:", color=discord.Color.dark_gray())
-    embed.add_field(name="الأوامر", value="• -برودكاست : الشرح\n• -bc [الرسالة] : عام للكل\n• -bc-role [@الرتبة] [الرسالة] : لرتبة معينة\n• -bc-room [#الروم] [الرسالة] : بروم معين", inline=False)
-    await ctx.send(embed=embed)
+    embed = discord.Embed(
+        title="Naxo Hub • لوحة التحكم الشخصية",
+        description=(
+            f"**روم السجلات:** {log_ch.mention if log_ch else 'غير محدد'}\n"
+            f"**رتبة الدعم:** {sup_role.mention if sup_role else 'غير محددة'}\n"
+            f"**تصنيف التكتات:** {cat_ch.name if cat_ch else 'غير محدد'}\n\n"
+            f"استخدم القائمة أدناه للتحكم:"
+        ),
+        color=discord.Color.from_rgb(35, 39, 42)
+    )
+    await ctx.send(embed=embed, view=MainSettingsView())
 
-@bot.command(name="bc")
-@commands.has_permissions(administrator=True)
-async def broadcast_all(ctx, *, text: str):
+# ==================== أوامر الإدارة والحماية ====================
+@bot.command(name="warn")
+@commands.has_permissions(manage_messages=True)
+async def warn_cmd(ctx, member: discord.Member, *, reason="لا يوجد سبب"):
     await ctx.message.delete()
-    user_id = ctx.author.id
-    now = time.time()
-    if user_id in cooldowns["broadcast"] and now - cooldowns["broadcast"][user_id] < 60:
-        await ctx.send("يرجى الانتظار دقيقة.", delete_after=5)
-        return
-    cooldowns["broadcast"][user_id] = now
-    success = 0
-    failed = 0
-    status_msg = await ctx.send("جاري إرسال البرودكاست...")
-    for member in ctx.guild.members:
-        if member.bot: continue
-        custom_text = text.replace("{user}", member.mention).replace("{username}", member.name).replace("{server}", ctx.guild.name).replace("{members}", str(ctx.guild.member_count))
-        try:
-            embed = discord.Embed(title=f"إعلان من {ctx.guild.name}", description=custom_text, color=discord.Color.blue())
-            await member.send(embed=embed)
-            success += 1
-            await asyncio.sleep(0.5)
-        except:
-            failed += 1
-    await status_msg.edit(content=f"تم إرسال البرودكاست. الناجح: {success} | الفاشل: {failed}")
+    warns[member.id] += 1
+    await ctx.send(f"تم تحذير {member.mention}. إجمالي التحذيرات: {warns[member.id]}. السبب: {reason}")
 
-@bot.command(name="bc-role")
-@commands.has_permissions(administrator=True)
-async def broadcast_role(ctx, role: discord.Role, *, text: str):
+@bot.command(name="ban")
+@commands.has_permissions(ban_members=True)
+async def ban_cmd(ctx, member: discord.Member, *, reason="لا يوجد سبب"):
     await ctx.message.delete()
-    success = 0
-    failed = 0
-    status_msg = await ctx.send(f"جاري الإرسال لرتبة {role.name}...")
-    for member in role.members:
-        if member.bot: continue
-        custom_text = text.replace("{user}", member.mention).replace("{username}", member.name).replace("{server}", ctx.guild.name).replace("{members}", str(ctx.guild.member_count))
-        try:
-            embed = discord.Embed(title=f"إعلان برتبة {role.name}", description=custom_text, color=discord.Color.green())
-            await member.send(embed=embed)
-            success += 1
-            await asyncio.sleep(0.5)
-        except:
-            failed += 1
-    await status_msg.edit(content=f"تم إرسال برودكاست الرتبة. الناجح: {success} | الفاشل: {failed}")
+    await member.ban(reason=reason)
+    await ctx.send(f"تم حظر {member.name} نهائياً. السبب: {reason}")
 
-@bot.command(name="bc-room")
-@commands.has_permissions(administrator=True)
-async def broadcast_room(ctx, channel: discord.TextChannel, *, text: str):
+@bot.command(name="kick")
+@commands.has_permissions(kick_members=True)
+async def kick_cmd(ctx, member: discord.Member, *, reason="لا يوجد سبب"):
     await ctx.message.delete()
-    custom_text = text.replace("{user}", "@everyone").replace("{username}", "الجميع").replace("{server}", ctx.guild.name).replace("{members}", str(ctx.guild.member_count))
-    embed = discord.Embed(title=f"إعلان رسمي", description=custom_text, color=discord.Color.orange())
-    await channel.send(embed=embed)
-    await ctx.send(f"تم الإرسال إلى الروم {channel.mention}.", delete_after=5)
-
-# ==================== الأوامر الاقتصادية ====================
-@bot.command(aliases=["bal"])
-async def balance(ctx, member: discord.Member = None):
-    target = member or ctx.author
-    bal = get_balance(target.id)
-    await ctx.send(f"{target.mention} رصيدك: {bal} عملة")
-
-@bot.command()
-async def daily(ctx):
-    user_id = ctx.author.id
-    now = time.time()
-    if user_id in cooldowns["daily"] and now - cooldowns["daily"][user_id] < 86400:
-        await ctx.send("استلمت مكافأتك مسبقاً.")
-        return
-    cooldowns["daily"][user_id] = now
-    update_balance(user_id, 500)
-    await ctx.send(f"{ctx.author.mention} استلمت 500 عملة!")
-
-@bot.command()
-async def work(ctx):
-    user_id = ctx.author.id
-    now = time.time()
-    if user_id in cooldowns["work"] and now - cooldowns["work"][user_id] < 3600:
-        await ctx.send("انتظر قليلاً للعمل مجدداً.")
-        return
-    cooldowns["work"][user_id] = now
-    earned = random.randint(100, 300)
-    update_balance(user_id, earned)
-    await ctx.send(f"{ctx.author.mention} كسبت +{earned} عملة!")
-
-@bot.command()
-async def beg(ctx):
-    user_id = ctx.author.id
-    now = time.time()
-    if user_id in cooldowns["beg"] and now - cooldowns["beg"][user_id] < 900:
-        await ctx.send("انتظر قبل الشحاذة.")
-        return
-    cooldowns["beg"][user_id] = now
-    if random.choice([True, False]):
-        earned = random.randint(10, 100)
-        update_balance(user_id, earned)
-        await ctx.send(f"أعطاك شخص +{earned} عملة.")
-    else:
-        await ctx.send("رفض الجميع إعطاءك شيئاً.")
-
-@bot.command()
-async def pay(ctx, member: discord.Member, amount: int):
-    if amount <= 0 or get_balance(ctx.author.id) < amount or member.id == ctx.author.id:
-        await ctx.send("خطأ في عملية التحويل.")
-        return
-    update_balance(ctx.author.id, -amount)
-    update_balance(member.id, amount)
-    await ctx.send(f"تم تحويل {amount} إلى {member.mention}.")
-
-@bot.command(aliases=["lb"])
-async def leaderboard(ctx):
-    if not economy_db:
-        await ctx.send("لا توجد بيانات.")
-        return
-    sorted_users = sorted(economy_db.items(), key=lambda x: x[1], reverse=True)[:10]
-    desc = "".join([f"{idx}. <@!{uid}> - {bal}\n" for idx, (uid, bal) in enumerate(sorted_users, 1)])
-    embed = discord.Embed(title="أغنى الأعضاء", description=desc, color=discord.Color.gold())
-    await ctx.send(embed=embed)
-
-@bot.command()
-async def slots(ctx, amount: int):
-    if amount <= 0 or get_balance(ctx.author.id) < amount:
-        await ctx.send("رصيد غير كافٍ.")
-        return
-    symbols = ["تفاح", "موز", "برتقال", "جرس", "ماس"]
-    result = [random.choice(symbols) for _ in range(3)]
-    update_balance(ctx.author.id, -amount)
-    if result[0] == result[1] == result[2]:
-        won = amount * 5
-        update_balance(ctx.author.id, won)
-        await ctx.send(f"النتيجة: {' '.join(result)} | ربحت +{won}")
-    else:
-        await ctx.send(f"النتيجة: {' '.join(result)} | خسرت -{amount}")
-
-@bot.command()
-async def dice(ctx, amount: int):
-    if amount <= 0 or get_balance(ctx.author.id) < amount:
-        await ctx.send("رصيد غير كافٍ.")
-        return
-    user_roll, bot_roll = random.randint(1, 6), random.randint(1, 6)
-    update_balance(ctx.author.id, -amount)
-    if user_roll > bot_roll:
-        update_balance(ctx.author.id, amount * 2)
-        await ctx.send(f"نردك: {user_roll} | البوت: {bot_roll} (فزت)")
-    else:
-        await ctx.send(f"نردك: {user_roll} | البوت: {bot_roll} (خسرت)")
-
-@bot.command()
-async def coinflip(ctx, amount: int, choice: str):
-    choice = choice.lower()
-    if choice not in ["صورة", "كتابة"] or amount <= 0 or get_balance(ctx.author.id) < amount:
-        await ctx.send("خطأ في البيانات.")
-        return
-    result = random.choice(["صورة", "كتابة"])
-    update_balance(ctx.author.id, -amount)
-    if choice == result:
-        update_balance(ctx.author.id, amount * 2)
-        await ctx.send(f"جاءت {result} (فزت)")
-    else:
-        await ctx.send(f"جاءت {result} (خسرت)")
-
-@bot.command()
-async def shop(ctx):
-    embed = discord.Embed(title="المتجر", description="استخدم -buy [الاسم]", color=discord.Color.teal())
-    for k, i in shop_items.items():
-        embed.add_field(name=f"{i['name']} ({k})", value=f"{i['desc']} - السعر: {i['price']}", inline=False)
-    await ctx.send(embed=embed)
-
-@bot.command()
-async def buy(ctx, item_key: str):
-    item_key = item_key.lower()
-    if item_key not in shop_items or get_balance(ctx.author.id) < shop_items[item_key]["price"]:
-        await ctx.send("خطأ في الشراء.")
-        return
-    update_balance(ctx.author.id, -shop_items[item_key]["price"])
-    inventory_db[ctx.author.id].append(item_key)
-    await ctx.send("تم الشراء بنجاح.")
-
-@bot.command()
-async def inventory(ctx):
-    items = inventory_db[ctx.author.id]
-    if not items:
-        await ctx.send("حقيبتك فارغة.")
-        return
-    desc = "".join([f"• {shop_items[k]['name']}\n" for k in set(items)])
-    embed = discord.Embed(title="الحقيبة", description=desc, color=discord.Color.blurple())
-    await ctx.send(embed=embed)
-
-@bot.command()
-async def use(ctx, item_key: str):
-    item_key = item_key.lower()
-    if item_key not in inventory_db[ctx.author.id]:
-        await ctx.send("العنصر غير موجود.")
-        return
-    inventory_db[ctx.author.id].remove(item_key)
-    await ctx.send("تم الاستخدام بنجاح.")
-
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def addcoins(ctx, member: discord.Member, amount: int):
-    update_balance(member.id, amount)
-    await ctx.send("تمت الإضافة.")
-
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def removecoins(ctx, member: discord.Member, amount: int):
-    update_balance(member.id, -amount)
-    await ctx.send("تم الخصم.")
-
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def setcoins(ctx, member: discord.Member, amount: int):
-    economy_db[member.id] = max(0, amount)
-    await ctx.send("تم التعيين.")
-
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def resetcoins(ctx, member: discord.Member):
-    economy_db[member.id] = 0
-    await ctx.send("تم التصفير.")
-
-@bot.command(name="setchannel")
-@commands.has_permissions(administrator=True)
-async def set_channel(ctx):
-    await ctx.send("تم تفعيل التعرف التلقائي.")
-
-@bot.command(name="log")
-@commands.has_permissions(administrator=True)
-async def log_status(ctx):
-    await ctx.send("لوحة السجلات مفعلة.")
-
-@bot.event
-async def on_message(message):
-    if message.author.bot or not message.guild:
-        return
-    content = message.content.strip()
-    if content == "منو قطوتي":
-        await message.channel.send("مياو")
-    elif content == "منو بطتي":
-        await message.channel.send("بط بط")
-    elif content == "شاطر" or content == "شاطرة":
-        await message.channel.send("كلزق")
-    
-    author_id = message.author.id
-    current_time = asyncio.get_event_loop().time()
-    message_cache[author_id] = [t for t in message_cache[author_id] if current_time - t < 5]
-    message_cache[author_id].append(current_time)
-    if len(message_cache[author_id]) > 5:
-        try:
-            await message.delete()
-            log_chan = get_log_channel(message.guild)
-            if log_chan: await log_chan.send("تنبيه سبام.")
-        except: pass
-        return
-    await bot.process_commands(message)
-
-@bot.event
-async def on_member_join(member: discord.Member):
-    for channel in member.guild.text_channels:
-        if "welcome" in channel.name.lower() or "ترحيب" in channel.name:
-            await channel.send(f"حياك الله {member.mention}")
-            break
-
-@bot.event
-async def on_message_delete(message):
-    if message.author.bot or not message.guild: return
-    log_chan = get_log_channel(message.guild)
-    if log_chan:
-        await log_chan.send(f"حذف رسالة لـ {message.author.mention}")
-
-@bot.event
-async def on_message_edit(before, after):
-    if before.author.bot or not before.guild or before.content == after.content: return
-    log_chan = get_log_channel(before.guild)
-    if log_chan:
-        await log_chan.send(f"تعديل رسالة لـ {before.author.mention}")
-
-@bot.command(name="ping")
-async def ping(ctx):
-    await ctx.send(f"Pong! {round(bot.latency * 1000)}ms")
+    await member.kick(reason=reason)
+    await ctx.send(f"تم طرد {member.name}. السبب: {reason}")
 
 @bot.command(name="clear")
 @commands.has_permissions(manage_messages=True)
-async def clear(ctx, amount: int):
+async def clear_messages(ctx, amount: int = 10):
     await ctx.message.delete()
     deleted = await ctx.channel.purge(limit=amount)
-    msg = await ctx.send(f"تم حذف {len(deleted)} رسالة.")
-    await asyncio.sleep(3)
-    try: await msg.delete()
-    except: pass
+    await ctx.send(f"تم مسح {len(deleted)} رسالة بنجاح.", delete_after=4)
 
-@bot.command(name="server")
-async def server_info(ctx):
-    await ctx.send(f"السيرفر: {ctx.guild.name} | الأعضاء: {ctx.guild.member_count}")
+@bot.command(name="setsupportrole")
+@commands.has_permissions(administrator=True)
+async def set_support_role(ctx, role: discord.Role):
+    await ctx.message.delete()
+    ticket_settings["global_support_role"] = role.id
+    await ctx.send(f"تم تحديد رتبة الدعم العامة: {role.mention}", delete_after=5)
+
+@bot.command(name="setlog")
+@commands.has_permissions(administrator=True)
+async def set_log(ctx, channel: discord.TextChannel):
+    await ctx.message.delete()
+    ticket_settings["log_channel"] = channel.id
+    await ctx.send(f"تم تعيين روم السجلات: {channel.mention}", delete_after=5)
+
+@bot.command(name="setcategory")
+@commands.has_permissions(administrator=True)
+async def set_category(ctx, category: discord.CategoryChannel):
+    await ctx.message.delete()
+    ticket_settings["category_id"] = category.id
+    await ctx.send(f"تم تعيين تصنيف التكتات: {category.name}", delete_after=5)
+
+@bot.command(name="setup-ticket")
+@commands.has_permissions(administrator=True)
+async def setup_ticket(ctx):
+    await ctx.message.delete()
+    view = TicketSelectView()
+    await ctx.channel.send(content=ticket_settings["panel_image"], view=view)
+
+@bot.command(name="ping")
+async def check_ping(ctx):
+    latency = round(bot.latency * 1000)
+    await ctx.send(f"سرعة استجابة البوت: {latency}ms")
+
+@bot.command(name="userinfo")
+async def userinfo_cmd(ctx, member: discord.Member = None):
+    member = member or ctx.author
+    embed = discord.Embed(title=f"معلومات المستخدم: {member.name}", color=discord.Color.blue())
+    embed.add_field(name="ID", value=member.id, inline=True)
+    embed.add_field(name="تاريخ الانضمام للديسكورد", value=member.created_at.strftime("%Y-%m-%d"), inline=True)
+    embed.add_field(name="تاريخ الانضمام للسيرفر", value=member.joined_at.strftime("%Y-%m-%d") if member.joined_at else "غير معروف", inline=True)
+    await ctx.send(embed=embed)
 
 @bot.command(name="avatar")
-async def avatar(ctx, user: discord.Member = None):
-    target = user or ctx.author
-    await ctx.send(target.display_avatar.url)
+async def avatar_cmd(ctx, member: discord.Member = None):
+    member = member or ctx.author
+    embed = discord.Embed(title=f"صورة {member.name}", color=discord.Color.dark_purple())
+    embed.set_image(url=member.avatar.url if member.avatar else member.default_avatar.url)
+    await ctx.send(embed=embed)
 
-@bot.command(name="rules")
-@commands.has_permissions(administrator=True)
-async def rules(ctx):
-    await ctx.message.delete()
-    await ctx.send("قوانين السيرفر: الاحترام، عدم السبام، منع الإعلانات.")
+# ==================== لوحة التكتات والأزرار ====================
+class TicketSelectView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
 
-@bot.command(name="suggest")
-async def suggest(ctx, *, suggestion: str):
-    await ctx.message.delete()
-    msg = await ctx.send(f"اقتراح من {ctx.author.mention}: {suggestion}")
-    await msg.add_reaction("👍")
-    await msg.add_reaction("👎")
+    @discord.ui.select(
+        placeholder="اختر القسم المطلوب لفتح تذكرة ..",
+        options=[
+            discord.SelectOption(label="الدعم الفني", value="support", description="للشكاوى والمشاكل التقنية"),
+            discord.SelectOption(label="تقديم فرع العيال", value="staff_apply_boys", description="للتقديم على الإدارة"),
+            discord.SelectOption(label="تقديم فرع البنات", value="staff_apply_girls", description="للتقديم على الإدارة النسائية"),
+            discord.SelectOption(label="طلب سكرم", value="scrim", description="تنظيم ومباريات السكرم"),
+            discord.SelectOption(label="طلب رتبة", value="store", description="شراء واستفسارات الرتب"),
+            discord.SelectOption(label="التعاونات", value="partnerships", description="الشراكات والاعلانات")
+        ]
+    )
+    async def select_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
+        guild = interaction.guild
+        user = interaction.user
 
-@bot.command(name="announce")
-@commands.has_permissions(administrator=True)
-async def announce(ctx, title: str, *, message: str):
+        if user.id in active_tickets:
+            chan = guild.get_channel(active_tickets[user.id])
+            if chan:
+                await interaction.response.send_message(f"لديك تكت مفتوح مسبقاً هنا: {chan.mention}", ephemeral=True)
+                return
+            else:
+                active_tickets.pop(user.id, None)
+
+        ticket_type = select.values[0]
+        type_names = {
+            "support": "الدعم-الفني",
+            "staff_apply_boys": "تقديم-عيال",
+            "staff_apply_girls": "تقديم-بنات",
+            "scrim": "طلب-سكرم",
+            "store": "طلب-رتبه",
+            "partnerships": "تعاونات"
+        }
+        
+        channel_name = f"ticket-{type_names.get(ticket_type, 'support')}-{user.name}"
+        category = guild.get_channel(ticket_settings["category_id"]) if ticket_settings["category_id"] else None
+        
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
+            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True)
+        }
+        
+        target_role_id = ticket_settings["type_roles"].get(ticket_type) or ticket_settings.get("global_support_role")
+        if target_role_id:
+            support_role = guild.get_role(target_role_id)
+            if support_role:
+                overwrites[support_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
+
+        try:
+            ticket_channel = await guild.create_text_channel(name=channel_name, category=category, overwrites=overwrites)
+        except Exception as e:
+            await interaction.response.send_message(f"حدث خطأ أثناء الإنشاء: {e}", ephemeral=True)
+            return
+
+        active_tickets[user.id] = ticket_channel.id
+        custom_msg = ticket_settings["type_messages"].get(ticket_type, "يرجى توضيح طلبك.")
+
+        embed = discord.Embed(
+            title=f"تكت: {select.values[0]}",
+            description=f"مرحباً بك {user.mention}\n{custom_msg}",
+            color=discord.Color.dark_theme()
+        )
+        embed.set_footer(text=f"صاحب التكت ID: {user.id}")
+
+        control_view = TicketControlView()
+        ping_content = f"{user.mention}"
+        if target_role_id:
+            ping_content += f" <@&{target_role_id}>"
+
+        await ticket_channel.send(content=ping_content, embed=embed, view=control_view)
+        await interaction.response.send_message(f"تم إنشاء تكت الخاص بك بنجاح: {ticket_channel.mention}", ephemeral=True)
+
+class TicketControlView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="إغلاق التكت", style=discord.ButtonStyle.red, custom_id="close_ticket_btn_naxo_ultimate")
+    async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        channel = interaction.channel
+        await interaction.response.send_message("جاري إغلاق التكت وحفظ السجل...")
+        for uid, cid in list(active_tickets.items()):
+            if cid == channel.id:
+                active_tickets.pop(uid, None)
+                break
+        await asyncio.sleep(2)
+        await channel.delete()
+
+@bot.command(name="close")
+@commands.has_permissions(manage_channels=True)
+async def ticket_close_cmd(ctx):
     await ctx.message.delete()
-    await ctx.send(f"إعلان: **{title}**\n{message}")
+    channel = ctx.channel
+    for uid, cid in list(active_tickets.items()):
+        if cid == channel.id:
+            active_tickets.pop(uid, None)
+            break
+    await ctx.send("جاري إغلاق التكت...")
+    await asyncio.sleep(2)
+    await channel.delete()
+
+@bot.command(name="add")
+@commands.has_permissions(manage_channels=True)
+async def ticket_add(ctx, member: discord.Member):
+    await ctx.message.delete()
+    await ctx.channel.set_permissions(member, read_messages=True, send_messages=True)
+    await ctx.send(f"تمت إضافة {member.mention} للتكت.", delete_after=5)
+
+@bot.command(name="remove")
+@commands.has_permissions(manage_channels=True)
+async def ticket_remove(ctx, member: discord.Member):
+    await ctx.message.delete()
+    await ctx.channel.set_permissions(member, overwrite=None)
+    await ctx.send(f"تمت إزالة {member.mention} من التكت.", delete_after=5)
+
+@bot.command(name="lock")
+@commands.has_permissions(manage_channels=True)
+async def ticket_lock(ctx):
+    await ctx.message.delete()
+    await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=False)
+    await ctx.send("تم قفل التكت.", delete_after=5)
+
+@bot.command(name="unlock")
+@commands.has_permissions(manage_channels=True)
+async def ticket_unlock(ctx):
+    await ctx.message.delete()
+    await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=True)
+    await ctx.send("تم فتح التكت.", delete_after=5)
 
 keep_alive()
 bot.run(os.environ['TOKEN'])
