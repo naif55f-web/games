@@ -53,7 +53,7 @@ async def games_menu(ctx):
     )
     await ctx.send(embed=embed)
 
-# ==================== لعبة المافيا بدون روابط وبشكل نظيف ====================
+# ==================== لعبة المافيا بالشات العام وبدون وميض ====================
 
 class JoinGameView(discord.ui.View):
     def __init__(self):
@@ -85,16 +85,16 @@ class JoinGameView(discord.ui.View):
         count = len(self.participants)
         content = f"**اللاعبين:** {count}/24\nin {remaining_time} seconds"
         try:
-            # الحفاظ على الصورة المرفقة وعدم حذفها أثناء التحديث
             file = await get_mafia_file()
             await interaction.message.edit(content=content, attachments=[file] if file else [], view=self)
         except:
             pass
 
 class TargetSelectView(discord.ui.View):
-    def __init__(self, players):
-        super().__init__(timeout=25)
+    def __init__(self, players, allowed_user):
+        super().__init__(timeout=20)
         self.selected_target = None
+        self.allowed_user = allowed_user
         for p in players:
             self.add_item(TargetButton(p))
 
@@ -104,8 +104,11 @@ class TargetButton(discord.ui.Button):
         self.target_player = player
 
     async def callback(self, interaction: discord.Interaction):
+        if interaction.user != self.view.allowed_user:
+            await interaction.response.send_message("❌ ليس حقك اختيار الهدف!", ephemeral=True)
+            return
         self.view.selected_target = self.target_player
-        await interaction.response.send_message(f"✅ تم اختيار: **{self.target_player.display_name}**", ephemeral=True)
+        await interaction.response.send_message(f"✅ تم تأكيد الاختيار بنجاح!", ephemeral=True)
         self.view.stop()
 
 @bot.command(name='مافيا')
@@ -116,7 +119,6 @@ async def cmd_mafia(ctx):
     view = JoinGameView()
     msg = await ctx.send(content=initial_text, file=file, view=view)
 
-    # عد تنازلي لمدة 30 ثانية وتحديث الوقت والثواني بدون أي روابط نصية
     for remaining in range(29, -1, -1):
         await asyncio.sleep(1)
         count = len(view.participants)
@@ -150,36 +152,30 @@ async def cmd_mafia(ctx):
     for c in citizens:
         roles[c] = 'مواطن'
 
-    await ctx.send(f"🔒 **تم توزيع الأدوار سراً بالخاص!** عدد اللاعبين المشاركين: {len(participants)}.")
-
-    try:
-        await mafia_player.send("🔪 **أنت القاتل (المافيا)!** اختبئ جيداً واقضِ على الجميع.")
-        await doctor_player.send("💉 **أنت الطبيب!** مهمتك حماية شخص كل ليلة من القتل.")
-        for c in citizens:
-            await c.send("👥 **أنت مواطن بريء!** حاول معرفة القاتل والتصويت عليه.")
-    except:
-        pass
+    await ctx.send(f"🔒 **تم توزيع الأدوار!** (المافيا والطبيب تم تعيينهم سراً). عدد اللاعبين المشاركين: {len(participants)}.")
 
     await ctx.send("🌙 **حل الليل... تنام المدينة.**")
-    await ctx.send("💉 **دور الطبيب الآن!**")
+    await ctx.send(f"💉 **دور الطبيب ({doctor_player.mention}) الآن!** اختر الشخص الذي تريد حمايته (أمام الجميع بالأزرار):")
 
     doctor_target = None
     try:
-        view_doctor = TargetSelectView(participants)
-        await doctor_player.send("💉 **اختر الشخص الذي تريد حمايته هذه الليلة:**", view=view_doctor)
-        await view_doctor.wait()
-        doctor_target = view_doctor.selected_target
+        doc_view = TargetSelectView(participants, doctor_player)
+        doc_msg = await ctx.send(view=doc_view)
+        await doc_view.wait()
+        doctor_target = doc_view.selected_target
+        await doc_msg.delete()
     except:
         pass
 
-    await ctx.send("🔪 **دور المافيا الآن!**")
+    await ctx.send(f"🔪 **دور المافيا ({mafia_player.mention}) الآن!** اختر الضحية المستهدفة:")
 
     mafia_target = None
     try:
-        view_mafia = TargetSelectView(participants)
-        await mafia_player.send("🔪 **اختر الشخص الذي تريد قتله هذه الليلة:**", view=view_mafia)
-        await view_mafia.wait()
-        mafia_target = view_mafia.selected_target
+        maf_view = TargetSelectView(participants, mafia_player)
+        maf_msg = await ctx.send(view=maf_view)
+        await maf_view.wait()
+        mafia_target = maf_view.selected_target
+        await maf_msg.delete()
     except:
         pass
 
@@ -187,7 +183,7 @@ async def cmd_mafia(ctx):
     await ctx.send("☀️ **أشرقت شمس اليوم الجديد!** حان وقت الكشف عن الأحداث...")
 
     if mafia_target and mafia_target == doctor_target:
-        await ctx.send(f"🛡️ **تمت حماية {mafia_target.display_name} من قبل الطبيب من القاتل!** ولم يمت أحد هذه الليلة. 🎉")
+        await ctx.send(f"🛡️ **تمت حماية {mafia_target.display_name} من قبل الطبيب!** ولم يمت أحد هذه الليلة. 🎉")
     elif mafia_target:
         await ctx.send(f"💀 للأسف، نجحت المافيا وتم اغتيال اللاعب **{mafia_target.display_name}**!")
         if mafia_target in participants:
@@ -195,7 +191,7 @@ async def cmd_mafia(ctx):
     else:
         await ctx.send("🌅 لم تحدث أي حالة قتل هذه الليلة!")
 
-    await ctx.send("🗳️ **بدأ التصويت!** من تعتقدون أنه المافيا؟ (اكتب اسم الشخص أو سوِّ له منشن خلال 15 ثانية)")
+    await ctx.send("🗳️ **بدأ التصويت العام بالشات!** من تعتقدون أنه المافيا؟ (منشن الشخص أو اكتب اسمه خلال 15 ثانية)")
 
     votes = {}
     def vote_check(m):
@@ -331,7 +327,7 @@ async def cmd_rps(ctx, choice: str = None):
         res = "تعادل 🤝"
     elif (choice == "حجر" and bot_choice == "مقص") or (choice == "ورقة" and bot_choice == "حجر") or (choice == "مقص" and bot_choice == "ورقة"):
         res = "فزت علي! 🎉 (+10 نقاط)"
-        add_points(msg.author.id, 10)
+        add_points(ctx.author.id, 10)
     else:
         res = "أنا فزت عليك! 🤖"
     await ctx.send(f"اختيارك: {choice} | اختياري: {bot_choice}\nالنتيجة: **{res}**")
