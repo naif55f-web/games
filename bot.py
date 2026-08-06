@@ -26,22 +26,155 @@ async def games_menu(ctx):
     embed = discord.Embed(title="Game Commands", color=discord.Color.blue())
     embed.add_field(
         name="🎮 الألعاب الجماعية",
-        value="• روليت\n• روليتز\n• عكسي\n• سكات\n• وصل\n• لغم\n• بومب\n• كراسي\n• نرد\n• هايد\n• خمن\n• مافيا\n• حجره\n• اكس\n• ازار",
-        inline=False
-    )
-    embed.add_field(
-        name="🎯 الألعاب الفردية",
-        value="• حساب\n• عواصم\n• اشبك\n• كت\n• اسرع\n• كمل\n• فكك\n• اعلام\n• التالي\n• جمع\n• عكس\n• مفرد",
-        inline=False
-    )
-    embed.add_field(
-        name="⚙️ أوامر أخرى",
-        value="• تصويت\n• توب\n• نقاطي\n• تحويل\n• ايقاف",
+        value="• مافيا (نظام متكامل بالأدوار والأزرار)\n• روليت\n• عكسي\n• سكات\n• وصل\n• لغم\n• بومب\n• كراسي\n• نرد\n• خمن\n• حجره\n• اكس",
         inline=False
     )
     await ctx.send(embed=embed)
 
-# ==================== الألعاب الجماعية ====================
+# ==================== لعبة المافيا التفاعلية الكاملة ====================
+
+class MafiaGame:
+    def __init__(self, ctx):
+        self.ctx = ctx
+        self.players = []
+        self.roles = {}  # {user: role} -> 'mafia', 'doctor', 'citizen'
+        self.mafia_target = None
+        self.doctor_target = None
+
+class MafiaSelectView(discord.ui.View):
+    def __init__(self, players, action_type):
+        super().__init__(timeout=30)
+        self.value = None
+        for player in players:
+            self.add_item(MafiaButton(player, action_type))
+
+class MafiaButton(discord.ui.Button):
+    def __init__(self, player, action_type):
+        super().__init__(label=player.display_name, style=discord.ButtonStyle.secondary)
+        self.target_player = player
+        self.action_type = action_type
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.value = self.target_player
+        await interaction.response.send_message(f"✅ تم تسجيل اختيارك بنجاح ({self.action_type}): **{self.target_player.display_name}**", ephemeral=True)
+        self.view.stop()
+
+@bot.command(name='مافيا')
+async def cmd_mafia(ctx):
+    await ctx.send("🕵️ **بدأت لعبة المافيا!** اكتب `انضمام` في الشات خلال 20 ثانية لتشارك معنا.")
+    
+    participants = []
+    def check(m):
+        return m.channel == ctx.channel and m.content == " انضمام" or m.content == "انضمام" and not m.author.bot
+
+    end_time = asyncio.get_event_loop().time() + 20
+    while asyncio.get_event_loop().time() < end_time:
+        try:
+            res = await bot.wait_for('message', timeout=5.0, check=check)
+            if res.author not in participants:
+                participants.append(res.author)
+                await ctx.send(f"👍 انضم للعبة: {res.author.mention}")
+        except asyncio.TimeoutError:
+            pass
+
+    if len(participants) < 3:
+        await ctx.send("❌ عذراً، يجب أن يكون عدد المشاركين 3 لاعبين على الأقل لبدء لعبة المافيا.")
+        return
+
+    # توزيع الأدوار
+    random.shuffle(participants)
+    roles = {}
+    roles[participants[0]] = 'mafia'
+    roles[participants[1]] = 'doctor'
+    for p in participants[2:]:
+        roles[p] = 'citizen'
+
+    await ctx.send(f"🔒 تم توزيع الأدوار سراً في الرسائل الخاصة (DM)! اللاعبون المشاركون: {len(participants)}")
+
+    # إرسال رسائل خاصة للأدوار
+    for player, role in roles.items():
+        try:
+            if role == 'mafia':
+                await player.send("🔪 **أنت المافيا!** هدفك القضاء على الجميع بهدوء دون أن يتم كشفك.")
+            elif role == 'doctor':
+                await player.send("💉 **أنت الطبيب!** دورك حماية نفسك أو أحد اللاعبين كل ليلة من غدر المافيا.")
+            else:
+                await player.send("👥 **أنت مواطن بريء!** حاول اكتشاف المافيا والتصويت ضدهم.")
+        except:
+            pass
+
+    # مرحلة الليل
+    await ctx.send("🌙 **حل الليل...** تنام المدينة وتبدأ تحركات المافيا والطبيب في الخفاء.")
+    
+    mafia_player = [p for p, r in roles.items() if r == 'mafia'][0]
+    doctor_player = [p for p, r in roles.items() if r == 'doctor'][0]
+
+    # اختيار المافيا للضحية عبر الخاص
+    mafia_target = None
+    try:
+        view_m = MafiaSelectView(participants, "القتل")
+        m_msg = await mafia_player.send("🔪 **اختر الشخص الذي تريد قتله هذه الليلة:**", view=view_m)
+        await view_m.wait()
+        mafia_target = view_m.value
+    except:
+        pass
+
+    # اختيار الطبيب لمن يحمي عبر الخاص
+    doctor_target = None
+    try:
+        view_d = MafiaSelectView(participants, "الحماية")
+        d_msg = await doctor_player.send("💉 **اختر الشخص الذي تريد حمايته هذه الليلة:**", view=view_d)
+        await view_d.wait()
+        doctor_target = view_d.value
+    except:
+        pass
+
+    await asyncio.sleep(3)
+    await ctx.send("☀️ **اشرقت شمس اليوم الجديد!** حان وقت الكشف عن الأحداث...")
+
+    # نتيجة الليل
+    if not mafia_target:
+        await ctx.send("🌅 مر ليل هادئ ولم يحدث أي مكروه اليوم.")
+    elif mafia_target == doctor_target:
+        await ctx.send(f"🛡️ هجمت المافيا على **{mafia_target.display_name}**، لكن الطبيب كان في الأرجح وقام بحمايته! **تمت حماية هذا المواطن من القتل وفشلت عملية القتل بنجاح! 🎉**")
+    else:
+        await ctx.send(f"💀 للأسف، نجحت المافيا واغتالت اللاعب **{mafia_target.display_name}** بالليل!")
+        participants.remove(mafia_target)
+
+    # مرحلة التصويت الجماعي لطرد المشتبه بهم
+    await ctx.send("🗳️ **بدأت مرحلة التصويت النقاشي!** من تظن أنه المافيا؟ (اكتب اسم اللاعب أو منشنه للتصويت ضده خلال 15 ثانية)")
+
+    votes = {}
+    def vote_check(m):
+        return m.channel == ctx.channel and not m.author.bot
+
+    vote_end = asyncio.get_event_loop().time() + 15
+    while asyncio.get_event_loop().time() < vote_end:
+        try:
+            v_msg = await bot.wait_for('message', timeout=3.0, check=vote_check)
+            voter = v_msg.author
+            # البحث عن الشخص المذكور في الرسالة
+            target = v_msg.mentions[0] if v_msg.mentions else None
+            if target and target in participants:
+                votes[voter] = target
+        except asyncio.TimeoutError:
+            pass
+
+    if votes:
+        # حساب أكثر شخص تم التصويت ضده
+        from collections import Counter
+        tally = Counter(votes.values())
+        most_voted, count = tally.most_common(1)[0]
+        await ctx.send(f"⚖️ النتيجة: تم طرد **{most_voted.display_name}** بناءً على تصويت الجماعة برصيد {count} أصوات!")
+        
+        if roles.get(most_voted) == 'mafia':
+            await ctx.send(f"🎉 **مبروك للمواطنين والطبيب!** لقد تم القضاء على المافيا الخفي **{most_voted.display_name}** وفاز الفريق الطيب!")
+        else:
+            await ctx.send(f"❌ للأسف، طلع شخص بريء (**{roles.get(most_voted)}**) وفازت المافيا باللعبة!")
+    else:
+        await ctx.send("⏰ انتهى الوقت بدون تصويت حاسم ونجت المافيا!")
+
+# ==================== الألعاب الأخرى السريعة ====================
 
 @bot.command(name='روليت')
 async def cmd_roulette(ctx):
@@ -52,246 +185,12 @@ async def cmd_roulette(ctx):
     else:
         await ctx.send(f"💥 بـووووم! {ctx.author.mention} طاحت عليه الرصاصة! 💀")
 
-@bot.command(name='روليتز')
-async def cmd_rouletz(ctx):
-    add_points(ctx.author.id, 20)
-    await ctx.send(f"🎡 {ctx.author.mention} شغل روليت الحظ وربح **20 نقطة**!")
-
 @bot.command(name='عكسي')
 async def cmd_aksi(ctx):
     await ctx.send(f"🔄 **لعبة عكسي:** أسرع واحد يعكس الكلمة التالية (مدرسة) يكتبها بالشات!")
 
-@bot.command(name='سكات')
-async def cmd_skat(ctx):
-    await ctx.send(f"🤫 **لعبة سكات!** أطول شخص يلتزم الصمت لمدة 10 ثواني يفوز! 🤐")
-    await asyncio.sleep(10)
-    await ctx.send(f"⏱️ انتهى وقت السكات!")
-
-@bot.command(name='وصل')
-async def cmd_wasal(ctx):
-    await ctx.send(f"🔗 **لعبة وصل:** اربط الكلمة التالية (سماء) بكلمة مناسبة!")
-
-@bot.command(name='لغم')
-async def cmd_mine(ctx):
-    safe = random.randint(1, 3)
-    await ctx.send(f"💣 زرعنا لغم في أحد الأبواب (1 أو 2 أو 3). اختر رقماً لا يكون فيه اللغم!")
-    def check(m):
-        return m.channel == ctx.channel and m.content.isdigit() and not m.author.bot
-    try:
-        msg = await bot.wait_for('message', timeout=10.0, check=check)
-        if int(msg.content) == safe:
-            add_points(msg.author.id, 25)
-            await ctx.send(f"🎉 كفو {msg.author.mention} تجنبت اللغم وفزت بـ 25 نقطة!")
-        else:
-            await ctx.send(f"💥 بووووم! دست على اللغم يا {msg.author.mention}.")
-    except asyncio.TimeoutError:
-        await ctx.send("⏰ انتهى الوقت!")
-
-@bot.command(name='بومب')
-async def cmd_bomb(ctx):
-    await ctx.send(f"💣 تم زرع القنبلة بواسطة {ctx.author.mention}! اكتب `قطع` بسرعة خلال 8 ثواني!")
-    def check(m):
-        return m.content == "قطع" and not m.author.bot
-    try:
-        msg = await bot.wait_for('message', timeout=8.0, check=check)
-        add_points(msg.author.id, 20)
-        await ctx.send(f"💥 كفو {msg.author.mention} فككت القنبلة بسلام! (+20 نقطة)")
-    except asyncio.TimeoutError:
-        await ctx.send("💥 بوووم! انفجرت القنبلة بالجميع! 💀")
-
-@bot.command(name='كراسي')
-async def cmd_chairs(ctx):
-    await ctx.send(f"🪑 أسرع شخص يكتب كلمة `جلس` يربح الكرسي! (معاك 5 ثواني)")
-    def check(m):
-        return m.content == "جلس" and not m.author.bot
-    try:
-        msg = await bot.wait_for('message', timeout=5.0, check=check)
-        add_points(msg.author.id, 15)
-        await ctx.send(f"🏆 الف مبروك يا {msg.author.mention} لحقت على الكرسي!")
-    except asyncio.TimeoutError:
-        await ctx.send("⏰ انتهى الوقت!")
-
-@bot.command(name='نرد')
-async def cmd_dice(ctx):
-    r1, r2 = random.randint(1, 6), random.randint(1, 6)
-    await ctx.send(f"🎲 رمي النرد لـ {ctx.author.mention}: **{r1}** و **{r2}** (المجموع: {r1+r2})")
-
-@bot.command(name='هايد')
-async def cmd_hide(ctx):
-    await ctx.send(f"👤 بدأ التخفي (هايد)! ابحث عن المكان السري.")
-
-@bot.command(name='خمن')
-async def cmd_guess(ctx):
-    target = random.randint(1, 10)
-    await ctx.send(f"🔮 خمن الرقم السري من 1 إلى 10! (معاك 15 ثانية)")
-    def check(m):
-        return m.channel == ctx.channel and m.content.isdigit() and not m.author.bot
-    try:
-        msg = await bot.wait_for('message', timeout=15.0, check=check)
-        if int(msg.content) == target:
-            add_points(msg.author.id, 20)
-            await ctx.send(f"🎯 كفو {msg.author.mention} خمنت الرقم الصحيح ({target})!")
-        else:
-            await ctx.send(f"❌ خطأ! الرقم كان: {target}")
-    except asyncio.TimeoutError:
-        await ctx.send(f"⏰ انتهى الوقت! الرقم كان: {target}")
-
-@bot.command(name='مافيا')
-async def cmd_mafia(ctx):
-    await ctx.send(f"🕵️ لعبة مافيا بدأت! من هو المافيا الخفي؟")
-
-@bot.command(name='حجره')
-async def cmd_rps(ctx, choice: str = None):
-    choices = ["حجر", "ورقة", "مقص"]
-    if choice not in choices:
-        await ctx.send("⚠️ اكتب هكذا: `-حجره حجر` أو `-حجره ورقة` أو `-حجره مقص`")
-        return
-    bot_choice = random.choice(choices)
-    if choice == bot_choice:
-        res = "تعادل 🤝"
-    elif (choice == "حجر" and bot_choice == "مقص") or (choice == "ورقة" and bot_choice == "حجر") or (choice == "مقص" and bot_choice == "ورقة"):
-        res = "فزت علي! 🎉 (+10 نقاط)"
-        add_points(ctx.author.id, 10)
-    else:
-        res = "أنا فزت عليك! 🤖"
-    await ctx.send(f"اختيارك: {choice} | اختياري: {bot_choice}\nالنتيجة: **{res}**")
-
-@bot.command(name='اكس')
-async def cmd_xo(ctx):
-    await ctx.send(f"❌⭕ لعبة اكس أو جاهزة للبدء!")
-
-@bot.command(name='ازار')
-async def cmd_azar(ctx):
-    await ctx.send(f"⚡ بدأت لعبة أزار والتحديات السريعة!")
-
-
-# ==================== الألعاب الفردية ====================
-
-@bot.command(name='حساب')
-async def cmd_math(ctx):
-    n1, n2 = random.randint(1, 50), random.randint(1, 50)
-    op = random.choice(['+', '-', '*'])
-    ans = eval(f"{n1} {op} {n2}")
-    await ctx.send(f"🧮 كم الناتج: **{n1} {op} {n2}**؟ (معاك 15 ثانية)")
-    def check(m):
-        return m.channel == ctx.channel and m.content.isdigit()
-    try:
-        msg = await bot.wait_for('message', timeout=15.0, check=check)
-        if int(msg.content) == ans:
-            add_points(msg.author.id, 10)
-            await ctx.send(f"🎉 كفو {msg.author.mention}! إجابة صحيحة (+10 نقاط)")
-        else:
-            await ctx.send(f"❌ خطأ! الناتج كان: {ans}")
-    except asyncio.TimeoutError:
-        await ctx.send(f"⏰ انتهى الوقت! الناتج كان: {ans}")
-
-@bot.command(name='عواصم')
-async def cmd_capitals(ctx):
-    caps = {"السعودية": "الرياض", "مصر": "القاهرة", "الكويت": "الكويت", "الإمارات": "أبوظبي"}
-    country, capital = random.choice(list(caps.items()))
-    await ctx.send(f"🌍 ما هي عاصمة **{country}**؟")
-    def check(m):
-        return m.channel == ctx.channel and not m.author.bot
-    try:
-        msg = await bot.wait_for('message', timeout=15.0, check=check)
-        if msg.content.strip() == capital:
-            add_points(msg.author.id, 10)
-            await ctx.send(f"🎉 صح يا {msg.author.mention}! العاصمة هي **{capital}**")
-        else:
-            await ctx.send(f"❌ خطأ! العاصمة الصحيحة: {capital}")
-    except asyncio.TimeoutError:
-        await ctx.send(f"⏰ انتهى الوقت! العاصمة: {capital}")
-
-@bot.command(name='اشبك')
-async def cmd_ashbak(ctx):
-    await ctx.send(f"🔗 اشبك الحروف التالية لتكوين كلمة مفيدة!")
-
-@bot.command(name='كت')
-async def cmd_cut(ctx):
-    qs = ["لو خيروك بين: بدون إنترنت أو بدون أصدقاء؟", "لو خيروك بين: السفر للماضي أو للمستقبل؟"]
-    embed = discord.Embed(title="❓ سؤال كت", description=random.choice(qs), color=discord.Color.purple())
-    await ctx.send(embed=embed)
-
-@bot.command(name='اسرع')
-async def cmd_asra3(ctx):
-    word = random.choice(["تفاحة", "سرعة", "صاروخ", "برمجة"])
-    await ctx.send(f"⚡ أسرع واحد يكتب هذه الكلمة: **{word}**")
-    def check(m):
-        return m.content.strip() == word and not m.author.bot
-    try:
-        msg = await bot.wait_for('message', timeout=10.0, check=check)
-        add_points(msg.author.id, 15)
-        await ctx.send(f"🏆 كفو {msg.author.mention} أسرع واحد! (+15 نقطة)")
-    except asyncio.TimeoutError:
-        await ctx.send(f"⏰ خلص الوقت!")
-
-@bot.command(name='كمل')
-async def cmd_kamel(ctx):
-    await ctx.send(f"📝 كمل المثل التالي: (من طلب العلا ...)")
-
-@bot.command(name='فكك')
-async def cmd_unpack(ctx):
-    words = {"برمجة": "ب ر م ج ة", "حاسوب": "ح ا س و ب"}
-    word, unpacked = random.choice(list(words.items()))
-    await ctx.send(f"✂️ فكك الكلمة: **{word}**")
-    def check(m):
-        return m.channel == ctx.channel and not m.author.bot
-    try:
-        msg = await bot.wait_for('message', timeout=15.0, check=check)
-        if msg.content.replace(" ", "") == word:
-            add_points(msg.author.id, 15)
-            await ctx.send(f"🎉 ممتاز يا {msg.author.mention} فككتها صح!")
-        else:
-            await ctx.send(f"❌ خطأ!")
-    except asyncio.TimeoutError:
-        await ctx.send(f"⏰ انتهى الوقت!")
-
-@bot.command(name='اعلام')
-async def cmd_flags(ctx):
-    await ctx.send(f"🚩 ما هو اسم الدولة صاحبة هذا العلم؟ 🇸🇦")
-
-@bot.command(name='التالي')
-async def cmd_next(ctx):
-    await ctx.send(f"⏭️ تم تخطي السؤال والانتقال للسؤال التالي بنجاح!")
-
-@bot.command(name='جمع')
-async def cmd_gam3(ctx):
-    await ctx.send(f"➕ ا جمع الحروف التالية لتكون كلمة: (ك - ت - ا - ب)")
-
-@bot.command(name='عكس')
-async def cmd_reverse(ctx):
-    normal_words = ["تفاحة", "قلم", "كمبيوتر"]
-    w = random.choice(normal_words)
-    rev = w[::-1]
-    await ctx.send(f"🔄 اعكس هذه الكلمة الأصلية: **{rev}**")
-    def check(m):
-        return m.channel == ctx.channel and not m.author.bot
-    try:
-        msg = await bot.wait_for('message', timeout=15.0, check=check)
-        if msg.content.strip() == w:
-            add_points(msg.author.id, 10)
-            await ctx.send(f"🎉 صح يا {msg.author.mention}! الأصل هو {w}")
-        else:
-            await ctx.send(f"❌ خطأ! الأصل كان: {w}")
-    except asyncio.TimeoutError:
-        await ctx.send(f"⏰ انتهى الوقت!")
-
-@bot.command(name='مفرد')
-async def cmd_mufrad(ctx):
-    await ctx.send(f"👤 أوجد مفرد الكلمة التالية: (أقلام)")
-
-
-# ==================== الأوامر العامة والأخرى ====================
-
-@bot.command(name='تصويت')
-async def cmd_vote(ctx, *, topic: str = "تصويت جديد"):
-    embed = discord.Embed(title="📊 صندوق التصويت", description=topic, color=discord.Color.green())
-    msg = await ctx.send(embed=embed)
-    await msg.add_reaction("👍")
-    await msg.add_reaction("👎")
-
 @bot.command(name='توب')
-async def cmd_top(ctx, game_name: str = None):
+async def cmd_top(ctx):
     if not user_points:
         await ctx.send("🏆 مافي نقاط مسجلة لحد الآن!")
         return
@@ -301,29 +200,13 @@ async def cmd_top(ctx, game_name: str = None):
         user = ctx.guild.get_member(uid)
         name = user.name if user else "لاعب"
         desc += f"{i}. **{name}** - `{pts}` نقطة\n"
-    
-    title = f"🏆 لوحة الشرف ({game_name})" if game_name else "🏆 لوحة الشرف العامة"
-    embed = discord.Embed(title=title, description=desc, color=discord.Color.gold())
+    embed = discord.Embed(title="🏆 لوحة الشرف العامة", description=desc, color=discord.Color.gold())
     await ctx.send(embed=embed)
 
 @bot.command(name='نقاطي')
 async def cmd_my_points(ctx):
     pts = user_points.get(ctx.author.id, 0)
     await ctx.send(f"📊 {ctx.author.mention}, رصيدك: **{pts}** نقطة.")
-
-@bot.command(name='تحويل')
-async def cmd_transfer(ctx, member: discord.Member, amount: int):
-    sender_pts = user_points.get(ctx.author.id, 0)
-    if amount <= 0 or sender_pts < amount:
-        await ctx.send("❌ عذراً، لا توجد نقاط كافية أو القيمة غير صالحة.")
-        return
-    user_points[ctx.author.id] -= amount
-    add_points(member.id, amount)
-    await ctx.send(f"✅ تم تحويل **{amount}** نقطة إلى {member.mention}!")
-
-@bot.command(name='ايقاف')
-async def cmd_stop(ctx):
-    await ctx.send(f"🛑 تم إيقاف الألعاب بواسطة {ctx.author.mention}.")
 
 # تشغيل البوت
 keep_alive()
