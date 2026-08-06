@@ -22,7 +22,6 @@ def add_points(user_id, points):
 async def on_ready():
     print(f'البوت شغال وجاهز باسم: {bot.user}')
 
-# دالة لتحميل الصورة وإرسالها كملف حقيقي بدون روابط
 async def get_mafia_file():
     image_url = "https://cdn.discordapp.com/attachments/1534223835031801956/1534963863999483954/B5320697-566B-45A7-9972-6BCF90A9E25B.png?ex=6a7609ff&is=6a74b87f&hm=d41721366c2cdb2f11ac853cb27d9134ee2b59ce2280eae5ad2355ad904e4435&"
     async with aiohttp.ClientSession() as session:
@@ -53,7 +52,7 @@ async def games_menu(ctx):
     )
     await ctx.send(embed=embed)
 
-# ==================== لعبة المافيا (أزرار سرية تظهر للمعني فقط في الشات العام) ====================
+# ==================== لعبة المافيا (أزرار خاصة ومخفية تماماً) ====================
 
 class JoinGameView(discord.ui.View):
     def __init__(self):
@@ -90,24 +89,40 @@ class JoinGameView(discord.ui.View):
         except:
             pass
 
-class SecretTargetView(discord.ui.View):
-    def __init__(self, players, target_user, game_instance):
+class SecretActionTriggerView(discord.ui.View):
+    def __init__(self, target_user, players, action_name, game_instance):
         super().__init__(timeout=20)
         self.target_user = target_user
+        self.players = players
+        self.action_name = action_name
         self.game_instance = game_instance
-        for p in players:
-            self.add_item(SecretTargetButton(p))
 
-class SecretTargetButton(discord.ui.Button):
+    @discord.ui.button(label="اضغط هنا لاختيار هدفك 🎯", style=discord.ButtonStyle.success)
+    async def trigger_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.target_user:
+            await interaction.response.send_message("❌ هذا الزر ليس مخصصاً لك!", ephemeral=True)
+            return
+        
+        # فتح القائمة المنسدلة أو أزرار الاختيار الخاصة بشكل مخفي تماماً (Ephemeral)
+        select_view = TargetDropdownView(self.players, self.game_instance)
+        title = "💉 اختر اللاعب لتولى حمايته:" if self.action_name == "doctor" else "🔪 اختر الضحية المستهدفة:"
+        await interaction.response.send_message(title, view=select_view, ephemeral=True)
+
+class TargetDropdownView(discord.ui.View):
+    def __init__(self, players, game_instance):
+        super().__init__(timeout=20)
+        self.game_instance = game_instance
+        
+        # إضافة خيارات الأيقونات أو الأزرار للاعبين
+        for p in players:
+            self.add_item(TargetChoiceButton(p))
+
+class TargetChoiceButton(discord.ui.Button):
     def __init__(self, player):
         super().__init__(label=player.display_name, style=discord.ButtonStyle.primary)
         self.target_player = player
 
     async def callback(self, interaction: discord.Interaction):
-        if interaction.user != self.view.target_user:
-            await interaction.response.send_message("❌ هذا ليس دورك، الأزرار مخصصة لشخص آخر!", ephemeral=True)
-            return
-        
         self.view.game_instance.selected_target = self.target_player
         await interaction.response.send_message(f"✅ تم تأكيد اختيارك لـ: **{self.target_player.display_name}** بنجاح!", ephemeral=True)
         self.view.stop()
@@ -145,7 +160,7 @@ async def cmd_mafia(ctx):
         pass
 
     if len(participants) < 5:
-        await ctx.send("**تم إيقاف اللعبة لعدم وجود `5` لاعبين على الأقل - ⛔.**")
+        await ctx.send("**تم إيقف اللعبة لعدم وجود `5` لاعبين على الأقل - ⛔.**")
         return
 
     random.shuffle(participants)
@@ -162,21 +177,20 @@ async def cmd_mafia(ctx):
 
     # --- دور الطبيب ---
     doc_session = GameSession()
-    doc_view = SecretTargetView(participants, doctor_player, doc_session)
-    doc_prompt_msg = await ctx.send(
+    doc_trigger_view = SecretActionTriggerView(doctor_player, participants, "doctor", doc_session)
+    doc_msg = await ctx.send(
         f"💉 **دور الطبيب ({doctor_player.mention}) الآن!**\n"
-        f"اضغط على الزر أدناه لاختيار الشخص الذي تريد حمايته (الرسالة والأزرار خاصة بك وحدك ولن يراها غيرك):",
-        view=doc_view
+        f"الرجاء الضغط على الزر أدناه لاختيار الشخص الذي تريد حمايته (الأزرار سرية ولا تظهر لأحد غيرك):",
+        view=doc_trigger_view
     )
     
-    # انتظار اختيار الطبيب
     try:
-        await asyncio.wait_for(doc_view.wait(), timeout=20.0)
-    except asyncio.TimeoutError:
+        await asyncio.sleep(20)
+    except:
         pass
-    
+
     try:
-        await doc_prompt_msg.delete()
+        await doc_msg.delete()
     except:
         pass
 
@@ -184,21 +198,20 @@ async def cmd_mafia(ctx):
 
     # --- دور المافيا ---
     maf_session = GameSession()
-    maf_view = SecretTargetView(participants, mafia_player, maf_session)
-    maf_prompt_msg = await ctx.send(
+    maf_trigger_view = SecretActionTriggerView(mafia_player, participants, "mafia", maf_session)
+    maf_msg = await ctx.send(
         f"🔪 **دور المافيا ({mafia_player.mention}) الآن!**\n"
-        f"اضغط على الزر أدناه لاختيار الضحية المستهدفة (الرسالة والأزرار خاصة بك وحدك ولن يراها غيرك):",
-        view=maf_view
+        f"الرجاء الضغط على الزر أدناه لاختيار الضحية المستهدفة (الأزرار سرية ولا تظهر لأحد غيرك):",
+        view=maf_trigger_view
     )
 
-    # انتظار اختيار المافيا
     try:
-        await asyncio.wait_for(maf_view.wait(), timeout=20.0)
-    except asyncio.TimeoutError:
+        await asyncio.sleep(20)
+    except:
         pass
 
     try:
-        await maf_prompt_msg.delete()
+        await maf_msg.delete()
     except:
         pass
 
@@ -352,7 +365,7 @@ async def cmd_rps(ctx, choice: str = None):
         res = "تعادل 🤝"
     elif (choice == "حجر" and bot_choice == "مقص") or (choice == "ورقة" and bot_choice == "حجر") or (choice == "مقص" and bot_choice == "ورقة"):
         res = "فزت علي! 🎉 (+10 نقاط)"
-        add_points(msg.author.id, 10)
+        add_points(ctx.author.id, 10)
     else:
         res = "أنا فزت عليك! 🤖"
     await ctx.send(f"اختيارك: {choice} | اختياري: {bot_choice}\nالنتيجة: **{res}**")
@@ -518,8 +531,7 @@ async def cmd_transfer(ctx, member: discord.Member, amount: int):
 
 @bot.command(name='ايقاف')
 async def cmd_stop(ctx):
-    await ctx.send(f"🛑 تم إيقف الألعاب بواسطة {ctx.author.mention}.")
+    await ctx.send(f"🛑 تم إيقاف الألعاب بواسطة {ctx.author.mention}.")
 
-# تشغيل البوت
 keep_alive()
 bot.run(os.environ['TOKEN'])
